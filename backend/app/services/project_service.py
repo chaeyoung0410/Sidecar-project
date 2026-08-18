@@ -3,7 +3,7 @@ from pathlib import Path
 
 from sqlmodel import Session, select
 
-from app.models import Project
+from app.models import Deck, DeckAction, Project
 from app.schemas import ProjectCreate, ProjectUpdate
 
 
@@ -96,6 +96,13 @@ class ProjectService:
             raise ProjectNotFoundError("Project not found")
 
         was_selected = project.is_selected
+        decks = self.session.exec(select(Deck).where(Deck.project_id == project_id)).all()
+        for deck in decks:
+            if deck.id is not None:
+                links = self.session.exec(select(DeckAction).where(DeckAction.deck_id == deck.id)).all()
+                for link in links:
+                    self.session.delete(link)
+            self.session.delete(deck)
         self.session.delete(project)
         self.session.commit()
 
