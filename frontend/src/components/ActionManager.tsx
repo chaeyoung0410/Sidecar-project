@@ -15,11 +15,11 @@ interface ActionManagerProps {
 }
 
 const typeLabels: Record<DashboardActionType, string> = {
-  ai_error: 'AI Error', git_commit: 'Git Commit', git_push: 'Git Push', notion: 'Notion', command: 'Custom Command',
+  ai_error: 'AI Error', git_commit: 'Git Commit', git_push: 'Git Push', git_pull: 'Git Pull', notion: 'Notion', command: 'Custom Command',
 }
 
 const defaultIcons: Record<DashboardActionType, DashboardActionIcon> = {
-  ai_error: 'spark', git_commit: 'commit', git_push: 'push', notion: 'notion', command: 'terminal',
+  ai_error: 'spark', git_commit: 'commit', git_push: 'push', git_pull: 'pull', notion: 'notion', command: 'terminal',
 }
 
 const emptyForm: DashboardActionInput = { name: '', type: 'command', icon: 'terminal', config: {} }

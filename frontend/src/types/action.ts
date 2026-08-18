@@ -1,5 +1,5 @@
-export type DashboardActionType = 'ai_error' | 'git_commit' | 'git_push' | 'notion' | 'command'
-export type DashboardActionIcon = 'spark' | 'commit' | 'push' | 'notion' | 'terminal' | 'play' | 'bug' | 'server'
+export type DashboardActionType = 'ai_error' | 'git_commit' | 'git_push' | 'git_pull' | 'notion' | 'command'
+export type DashboardActionIcon = 'spark' | 'commit' | 'push' | 'pull' | 'notion' | 'terminal' | 'play' | 'bug' | 'server'
 
 export interface DashboardAction {
   id: number

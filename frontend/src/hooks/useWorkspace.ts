@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   commitChanges as commitChangesRequest,
   getGitStatus,
+  getPullPreview,
   getPushPreview,
+  pullCurrentBranch,
   pushCurrentBranch,
 } from '../services/gitApi'
 import {
@@ -87,6 +89,12 @@ export function useWorkspace() {
     return result
   }, [refresh])
 
+  const pullChanges = useCallback(async () => {
+    const result = await pullCurrentBranch()
+    await refresh()
+    return result
+  }, [refresh])
+
   return {
     projects,
     currentProject: projects.find((project) => project.is_selected) ?? null,
@@ -102,5 +110,7 @@ export function useWorkspace() {
     commitChanges,
     getPushPreview,
     pushChanges,
+    getPullPreview,
+    pullChanges,
   }
 }

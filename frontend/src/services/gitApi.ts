@@ -1,5 +1,5 @@
 import { apiRequest } from './api'
-import type { GitCommitResult, GitPushPreview, GitPushResult, GitStatus } from '../types/git'
+import type { GitCommitResult, GitPullPreview, GitPullResult, GitPushPreview, GitPushResult, GitStatus } from '../types/git'
 
 export function getGitStatus(): Promise<GitStatus> {
   return apiRequest<GitStatus>('/api/git/status')
@@ -18,6 +18,17 @@ export function getPushPreview(): Promise<GitPushPreview> {
 
 export function pushCurrentBranch(): Promise<GitPushResult> {
   return apiRequest<GitPushResult>('/api/git/push', {
+    method: 'POST',
+    body: JSON.stringify({ confirmed: true }),
+  })
+}
+
+export function getPullPreview(): Promise<GitPullPreview> {
+  return apiRequest<GitPullPreview>('/api/git/pull-preview')
+}
+
+export function pullCurrentBranch(): Promise<GitPullResult> {
+  return apiRequest<GitPullResult>('/api/git/pull', {
     method: 'POST',
     body: JSON.stringify({ confirmed: true }),
   })

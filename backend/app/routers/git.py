@@ -5,6 +5,9 @@ from app.database import get_session
 from app.schemas import (
     GitCommitRequest,
     GitCommitResponse,
+    GitPullPreview,
+    GitPullRequest,
+    GitPullResponse,
     GitPushPreview,
     GitPushRequest,
     GitPushResponse,
@@ -60,5 +63,24 @@ def push_current_branch(
 ) -> GitPushResponse:
     try:
         return selected_git_service(session).push()
+    except (NotGitRepositoryError, GitServiceError) as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+
+
+@router.get("/pull-preview", response_model=GitPullPreview)
+def get_pull_preview(session: Session = Depends(get_session)) -> GitPullPreview:
+    try:
+        return selected_git_service(session).pull_preview()
+    except (NotGitRepositoryError, GitServiceError) as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+
+
+@router.post("/pull", response_model=GitPullResponse)
+def pull_current_branch(
+    _: GitPullRequest,
+    session: Session = Depends(get_session),
+) -> GitPullResponse:
+    try:
+        return selected_git_service(session).pull()
     except (NotGitRepositoryError, GitServiceError) as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error

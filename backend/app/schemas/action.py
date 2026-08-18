@@ -4,8 +4,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
-ActionType = Literal["ai_error", "git_commit", "git_push", "notion", "command"]
-ActionIcon = Literal["spark", "commit", "push", "notion", "terminal", "play", "bug", "server"]
+ActionType = Literal["ai_error", "git_commit", "git_push", "git_pull", "notion", "command"]
+ActionIcon = Literal["spark", "commit", "push", "pull", "notion", "terminal", "play", "bug", "server"]
 
 
 class DashboardActionCreate(BaseModel):

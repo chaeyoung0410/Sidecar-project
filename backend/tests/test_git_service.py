@@ -1,10 +1,11 @@
 import subprocess
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.git_service import GitService
+from app.services.git_service import GitService, GitServiceError, NotGitRepositoryError
 
 
 def run_git(path: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -21,6 +22,24 @@ def initialize_repository(path: Path, branch: str = "main") -> None:
     run_git(path, "init", "-b", branch)
     run_git(path, "config", "user.name", "CodePad Test")
     run_git(path, "config", "user.email", "codepad@example.test")
+
+
+def initialize_remote_pair(tmp_path: Path) -> tuple[Path, Path]:
+    remote = tmp_path / "remote.git"
+    source = tmp_path / "source"
+    local = tmp_path / "local"
+    source.mkdir()
+    run_git(tmp_path, "init", "--bare", str(remote))
+    initialize_repository(source)
+    (source / "app.txt").write_text("initial\n", encoding="utf-8")
+    run_git(source, "add", "--", "app.txt")
+    run_git(source, "commit", "-m", "Initial")
+    run_git(source, "remote", "add", "origin", str(remote))
+    run_git(source, "push", "-u", "origin", "main")
+    run_git(tmp_path, "clone", "--branch", "main", str(remote), str(local))
+    run_git(local, "config", "user.name", "CodePad Test")
+    run_git(local, "config", "user.email", "codepad@example.test")
+    return source, local
 
 
 def test_parse_git_status() -> None:
@@ -119,3 +138,72 @@ def test_pushes_current_branch_to_origin_without_force(tmp_path: Path) -> None:
         repository, "rev-parse", "HEAD"
     ).stdout.strip()
     assert service.push_preview().ahead == 0
+
+
+def test_pulls_remote_commit_and_reports_already_up_to_date(tmp_path: Path) -> None:
+    source, local = initialize_remote_pair(tmp_path)
+    (source / "app.txt").write_text("remote update\n", encoding="utf-8")
+    run_git(source, "commit", "-am", "Remote update")
+    run_git(source, "push", "origin", "main")
+
+    service = GitService(1, "Test", str(local))
+    preview = service.pull_preview()
+    assert preview.branch == "main"
+    assert preview.changed_files == []
+
+    result = service.pull()
+    assert result.success is True
+    assert result.conflict is False
+    assert result.already_up_to_date is False
+    assert result.commits == 1
+    assert result.files_changed == 1
+    assert (local / "app.txt").read_text(encoding="utf-8") == "remote update\n"
+
+    current = service.pull()
+    assert current.success is True
+    assert current.already_up_to_date is True
+
+
+def test_pull_preview_reports_local_changes(tmp_path: Path) -> None:
+    _, local = initialize_remote_pair(tmp_path)
+    (local / "app.txt").write_text("local edit\n", encoding="utf-8")
+    (local / "untracked.txt").write_text("new\n", encoding="utf-8")
+
+    preview = GitService(1, "Test", str(local)).pull_preview()
+
+    assert {file.path for file in preview.changed_files} == {"app.txt", "untracked.txt"}
+    assert any(file.unstaged for file in preview.changed_files)
+    assert any(file.status == "?" for file in preview.changed_files)
+
+
+def test_pull_detects_merge_conflict(tmp_path: Path) -> None:
+    source, local = initialize_remote_pair(tmp_path)
+    (local / "app.txt").write_text("local commit\n", encoding="utf-8")
+    run_git(local, "commit", "-am", "Local update")
+    run_git(local, "config", "pull.rebase", "false")
+    (source / "app.txt").write_text("remote commit\n", encoding="utf-8")
+    run_git(source, "commit", "-am", "Remote update")
+    run_git(source, "push", "origin", "main")
+
+    result = GitService(1, "Test", str(local)).pull()
+
+    assert result.success is False
+    assert result.conflict is True
+    assert result.conflict_files == ["app.txt"]
+
+
+def test_pull_rejects_missing_origin_and_non_repository(tmp_path: Path) -> None:
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    initialize_repository(repository)
+    (repository / "app.txt").write_text("initial\n", encoding="utf-8")
+    run_git(repository, "add", "--", "app.txt")
+    run_git(repository, "commit", "-m", "Initial")
+
+    with pytest.raises(GitServiceError):
+        GitService(1, "Test", str(repository)).pull_preview()
+
+    plain_directory = tmp_path / "plain"
+    plain_directory.mkdir()
+    with pytest.raises(NotGitRepositoryError):
+        GitService(1, "Plain", str(plain_directory)).pull_preview()

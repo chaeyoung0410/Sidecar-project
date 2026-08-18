@@ -17,7 +17,7 @@ engine = create_engine(settings.database_url, **engine_kwargs)
 def create_db_and_tables() -> None:
     """Create the small MVP schema on application startup."""
     # Importing models registers their SQLModel metadata before create_all.
-    from app.models import AIHistory, AIJournalDraft, CommandHistory, DashboardAction, DashboardState, ErrorHistory, NotionLog, Project, SavedCommand, SystemRecord  # noqa: F401
+    from app.models import AIHistory, AIJournalDraft, CommandHistory, DashboardAction, DashboardState, Deck, DeckAction, DeckState, ErrorHistory, NotionLog, Project, SavedCommand, SystemRecord  # noqa: F401
 
     SQLModel.metadata.create_all(engine)
 

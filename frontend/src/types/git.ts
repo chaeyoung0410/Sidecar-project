@@ -35,3 +35,27 @@ export interface GitPushResult {
   pushed: boolean
   message: string
 }
+
+export interface GitPullPreview {
+  repository: string
+  branch: string
+  remote: 'origin'
+  changed_files: ChangedFile[]
+}
+
+export interface GitPullResult {
+  success: boolean
+  repository: string
+  branch: string
+  remote: 'origin'
+  message: string
+  stdout: string
+  stderr: string
+  conflict: boolean
+  conflict_files: string[]
+  already_up_to_date: boolean
+  commits: number
+  files_changed: number
+  insertions: number
+  deletions: number
+}

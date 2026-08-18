@@ -5,12 +5,14 @@ from app.services.error_monitor import error_monitor
 from app.services.git_service import GitService
 from app.services.project_service import ProjectService
 from app.services.command_service import SavedCommandService, command_runner
+from app.services.deck_service import DeckService
 from app.services.notion_service import NotionService
 
 __all__ = [
     "ActionService",
     "AIService",
     "ConnectionManager",
+    "DeckService",
     "GitService",
     "NotionService",
     "ProjectService",

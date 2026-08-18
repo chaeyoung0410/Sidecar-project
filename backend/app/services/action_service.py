@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from sqlmodel import Session, select
 
 from app.database.database import engine
-from app.models import DashboardAction, DashboardState, SavedCommand
+from app.models import DashboardAction, DashboardState, DeckAction, SavedCommand
 from app.schemas import DashboardActionCreate, DashboardActionUpdate
 
 
@@ -13,6 +13,7 @@ DEFAULT_ACTIONS = [
     {"name": "AI Error", "type": "ai_error", "icon": "spark", "config": {}},
     {"name": "Git Commit", "type": "git_commit", "icon": "commit", "config": {}},
     {"name": "Git Push", "type": "git_push", "icon": "push", "config": {}},
+    {"name": "Git Pull", "type": "git_pull", "icon": "pull", "config": {}},
     {"name": "Notion", "type": "notion", "icon": "notion", "config": {}},
     {"name": "Command Runner", "type": "command", "icon": "terminal", "config": {}},
 ]
@@ -81,7 +82,10 @@ class ActionService:
         return action
 
     def delete(self, action_id: int) -> None:
-        self.session.delete(self.get(action_id))
+        action = self.get(action_id)
+        for link in self.session.exec(select(DeckAction).where(DeckAction.action_id == action_id)).all():
+            self.session.delete(link)
+        self.session.delete(action)
         self.session.commit()
         self._normalize_positions()
 

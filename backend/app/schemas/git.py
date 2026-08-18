@@ -49,3 +49,31 @@ class GitPushResponse(BaseModel):
     remote: Literal["origin"] = "origin"
     pushed: bool
     message: str
+
+
+class GitPullRequest(BaseModel):
+    confirmed: Literal[True]
+
+
+class GitPullPreview(BaseModel):
+    repository: str
+    branch: str
+    remote: Literal["origin"] = "origin"
+    changed_files: list[ChangedFile]
+
+
+class GitPullResponse(BaseModel):
+    success: bool
+    repository: str
+    branch: str
+    remote: Literal["origin"] = "origin"
+    message: str
+    stdout: str
+    stderr: str
+    conflict: bool
+    conflict_files: list[str]
+    already_up_to_date: bool
+    commits: int = 0
+    files_changed: int = 0
+    insertions: int = 0
+    deletions: int = 0

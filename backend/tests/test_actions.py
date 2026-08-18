@@ -7,7 +7,7 @@ def test_default_actions_and_crud_reorder() -> None:
     with TestClient(app) as client:
         defaults = client.get("/api/actions").json()
         assert [action["type"] for action in defaults] == [
-            "ai_error", "git_commit", "git_push", "notion", "command"
+            "ai_error", "git_commit", "git_push", "git_pull", "notion", "command"
         ]
 
         created = client.post(
@@ -16,7 +16,7 @@ def test_default_actions_and_crud_reorder() -> None:
         )
         assert created.status_code == 201
         action = created.json()
-        assert action["position"] == 5
+        assert action["position"] == 6
 
         updated = client.put(
             f"/api/actions/{action['id']}",
@@ -33,7 +33,7 @@ def test_default_actions_and_crud_reorder() -> None:
 
         assert client.delete(f"/api/actions/{action['id']}").status_code == 204
         remaining = client.get("/api/actions").json()
-        assert [item["position"] for item in remaining] == list(range(5))
+        assert [item["position"] for item in remaining] == list(range(6))
 
 
 def test_action_reorder_rejects_incomplete_list() -> None:

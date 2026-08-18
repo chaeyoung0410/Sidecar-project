@@ -1,11 +1,14 @@
 import subprocess
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 
 from app.schemas import (
     ChangedFile,
     GitCommitResponse,
+    GitPullPreview,
+    GitPullResponse,
     GitPushPreview,
     GitPushResponse,
     GitStatusResponse,
@@ -130,6 +133,72 @@ class GitService:
             message=result.stderr.strip() or result.stdout.strip() or "Push completed",
         )
 
+    def pull_preview(self) -> GitPullPreview:
+        branch = self._current_branch("pull")
+        self._run("remote", "get-url", "origin")
+        current_status = self.status()
+        return GitPullPreview(
+            repository=self.project_name,
+            branch=branch,
+            changed_files=current_status.changed_files,
+        )
+
+    def pull(self) -> GitPullResponse:
+        preview = self.pull_preview()
+        before = self._run("rev-parse", "HEAD").stdout.strip()
+        result = self._run(
+            "pull",
+            "origin",
+            preview.branch,
+            timeout=120,
+            check=False,
+        )
+        output = "\n".join(part for part in (result.stdout, result.stderr) if part)
+        conflict_files = []
+        if result.returncode != 0:
+            conflict_files = [
+                path for path in self._run(
+                    "diff", "--name-only", "--diff-filter=U", "-z", check=False
+                ).stdout.split("\0") if path
+            ]
+
+        already_up_to_date = any(
+            phrase in output.lower()
+            for phrase in ("already up to date", "already up-to-date")
+        )
+        files_changed, insertions, deletions = self._parse_pull_summary(output)
+        commits = 0
+        if result.returncode == 0:
+            after = self._run("rev-parse", "HEAD").stdout.strip()
+            if before != after:
+                commits = int(self._run("rev-list", "--count", f"{before}..{after}").stdout.strip() or "0")
+
+        conflict = bool(conflict_files)
+        if conflict:
+            message = "Merge conflict detected"
+        elif result.returncode != 0:
+            message = result.stderr.strip() or result.stdout.strip() or "Git Pull failed"
+        elif already_up_to_date:
+            message = "Already up to date"
+        else:
+            message = "Git Pull completed"
+
+        return GitPullResponse(
+            success=result.returncode == 0,
+            repository=self.project_name,
+            branch=preview.branch,
+            message=message,
+            stdout=result.stdout.strip(),
+            stderr=result.stderr.strip(),
+            conflict=conflict,
+            conflict_files=conflict_files,
+            already_up_to_date=already_up_to_date,
+            commits=commits,
+            files_changed=files_changed,
+            insertions=insertions,
+            deletions=deletions,
+        )
+
     def recent_commits(
         self,
         since: datetime,
@@ -197,10 +266,21 @@ class GitService:
 
         return files
 
-    def _current_branch(self) -> str:
+    @staticmethod
+    def _parse_pull_summary(output: str) -> tuple[int, int, int]:
+        files_match = re.search(r"(\d+) files? changed", output)
+        insertions_match = re.search(r"(\d+) insertions?\(\+\)", output)
+        deletions_match = re.search(r"(\d+) deletions?\(-\)", output)
+        return (
+            int(files_match.group(1)) if files_match else 0,
+            int(insertions_match.group(1)) if insertions_match else 0,
+            int(deletions_match.group(1)) if deletions_match else 0,
+        )
+
+    def _current_branch(self, operation: str = "push or commit") -> str:
         branch = self._run("branch", "--show-current").stdout.strip()
         if not branch:
-            raise GitServiceError("Cannot push or commit while HEAD is detached")
+            raise GitServiceError(f"Cannot {operation} while HEAD is detached")
         return branch
 
     def _run(

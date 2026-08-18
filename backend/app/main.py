@@ -6,8 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.database import create_db_and_tables
-from app.routers import actions, ai, commands, errors, git, health, notion, project, websocket
-from app.services import ActionService, command_runner
+from app.routers import actions, ai, commands, decks, errors, git, health, notion, project, websocket
+from app.services import ActionService, DeckService, command_runner
 
 
 settings = get_settings()
@@ -17,6 +17,7 @@ settings = get_settings()
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     create_db_and_tables()
     ActionService.seed_defaults()
+    DeckService.migrate_existing_actions()
     command_runner.recover_interrupted_runs()
     try:
         yield
@@ -46,5 +47,6 @@ app.include_router(commands.router)
 app.include_router(errors.router)
 app.include_router(ai.router)
 app.include_router(actions.router)
+app.include_router(decks.router)
 app.include_router(notion.router)
 app.include_router(websocket.router)
