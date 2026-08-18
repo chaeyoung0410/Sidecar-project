@@ -4,7 +4,7 @@ from pathlib import Path
 from sqlmodel import Session, select
 
 from app.models import Project
-from app.schemas import ProjectCreate
+from app.schemas import ProjectCreate, ProjectUpdate
 
 
 class ProjectNotFoundError(LookupError):
@@ -70,6 +70,21 @@ class ProjectService:
         self._clear_selection()
         project.is_selected = True
         project.last_used_at = datetime.now(UTC)
+        self.session.add(project)
+        self.session.commit()
+        self.session.refresh(project)
+        return project
+
+    def update(self, project_id: int, payload: ProjectUpdate) -> Project:
+        project = self.session.get(Project, project_id)
+        if not project:
+            raise ProjectNotFoundError("Project not found")
+
+        name = payload.name.strip()
+        if not name:
+            raise ValueError("Project name cannot be empty")
+
+        project.name = name
         self.session.add(project)
         self.session.commit()
         self.session.refresh(project)

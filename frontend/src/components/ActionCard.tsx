@@ -24,11 +24,12 @@ export function ActionCard({ name, shortcut, symbol, accent = false, disabled = 
         <div className={`flex h-10 w-10 items-center justify-center rounded-xl font-mono text-lg ${accent ? 'bg-white/15' : 'bg-apple/15 text-apple'}`}>
           {symbol}
         </div>
-        <div>
+        <div className="relative pr-7">
           <p className="text-[17px] font-semibold text-white">{name}</p>
           <p className={`mt-2 line-clamp-2 text-sm leading-5 ${accent ? 'text-white/75' : 'text-zinc-400'}`}>
             {shortcut}
           </p>
+          {!disabled && <span aria-hidden="true" className={`absolute bottom-0 right-0 text-xl transition group-hover:translate-x-1 ${accent ? 'text-white/80' : 'text-zinc-500'}`}>›</span>}
         </div>
       </div>
     </button>

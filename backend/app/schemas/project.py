@@ -8,6 +8,10 @@ class ProjectCreate(BaseModel):
     path: str = Field(min_length=1, max_length=2048)
 
 
+class ProjectUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
 class ProjectRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

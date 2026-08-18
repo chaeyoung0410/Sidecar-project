@@ -10,6 +10,7 @@ import {
   deleteProject as deleteProjectRequest,
   listProjects,
   selectProject as selectProjectRequest,
+  updateProject as updateProjectRequest,
 } from '../services/projectApi'
 import type { GitStatus } from '../types/git'
 import type { Project, ProjectCreate } from '../types/project'
@@ -69,6 +70,11 @@ export function useWorkspace() {
     await refresh()
   }, [refresh])
 
+  const updateProject = useCallback(async (projectId: number, name: string) => {
+    await updateProjectRequest(projectId, { name })
+    await refresh()
+  }, [refresh])
+
   const commitChanges = useCallback(async (files: string[], message: string) => {
     const result = await commitChangesRequest(files, message)
     await refresh()
@@ -91,6 +97,7 @@ export function useWorkspace() {
     refresh,
     createProject,
     selectProject,
+    updateProject,
     deleteProject,
     commitChanges,
     getPushPreview,

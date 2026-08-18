@@ -11,3 +11,7 @@ export interface ProjectCreate {
   name: string
   path: string
 }
+
+export interface ProjectUpdate {
+  name: string
+}

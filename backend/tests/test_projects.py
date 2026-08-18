@@ -5,6 +5,21 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
+def test_project_update_allows_cors_patch() -> None:
+    with TestClient(app) as client:
+        response = client.options(
+            "/api/projects/1",
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": "PATCH",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+
+    assert response.status_code == 200
+    assert "PATCH" in response.headers["access-control-allow-methods"]
+
+
 def test_project_crud_and_selection(tmp_path: Path) -> None:
     first_path = tmp_path / "first"
     second_path = tmp_path / "second"
@@ -31,6 +46,14 @@ def test_project_crud_and_selection(tmp_path: Path) -> None:
         selected_response = client.post(f"/api/projects/{first['id']}/select")
         assert selected_response.status_code == 200
         assert selected_response.json()["name"] == "First"
+
+        renamed_response = client.patch(
+            f"/api/projects/{first['id']}", json={"name": "Renamed project"}
+        )
+        assert renamed_response.status_code == 200
+        assert renamed_response.json()["name"] == "Renamed project"
+        assert renamed_response.json()["path"] == first["path"]
+        assert client.get("/api/projects/current").json()["name"] == "Renamed project"
 
         projects = client.get("/api/projects").json()
         assert len(projects) == 2

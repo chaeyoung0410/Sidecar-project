@@ -31,7 +31,7 @@ from app.schemas.git import (
     GitStatusResponse,
 )
 from app.schemas.health import HealthResponse
-from app.schemas.project import ProjectCreate, ProjectRead
+from app.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate
 from app.schemas.notion import NotionLogCreate, NotionLogRead, NotionStatusResponse
 
 __all__ = [
@@ -68,6 +68,7 @@ __all__ = [
     "NotionStatusResponse",
     "ProjectCreate",
     "ProjectRead",
+    "ProjectUpdate",
     "SavedCommandCreate",
     "SavedCommandRead",
     "SavedCommandUpdate",
