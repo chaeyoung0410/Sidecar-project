@@ -115,12 +115,8 @@ class GeminiProvider(AIProvider):
             },
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {
-                "responseFormat": {
-                    "text": {
-                        "mimeType": "application/json",
-                        "schema": schema,
-                    }
-                }
+                "responseMimeType": "application/json",
+                "responseJsonSchema": schema,
             },
         }
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"

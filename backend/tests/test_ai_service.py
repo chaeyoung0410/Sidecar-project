@@ -132,7 +132,7 @@ def test_gemini_provider_requests_structured_output() -> None:
 
     assert captured["header"] == "secret-key"
     body = captured["body"]
-    assert body["generationConfig"]["responseFormat"]["text"]["mimeType"] == "application/json"
+    assert body["generationConfig"]["responseMimeType"] == "application/json"
     assert result.code_fix == "import example"
 
 
@@ -200,5 +200,5 @@ def test_gemini_provider_generates_structured_journal() -> None:
     result = asyncio.run(run_provider())
     body = captured["body"]
 
-    assert body["generationConfig"]["responseFormat"]["text"]["schema"]["required"] == ["title", "content", "tags"]
+    assert body["generationConfig"]["responseJsonSchema"]["required"] == ["title", "content", "tags"]
     assert result.title == "오늘의 CodePad"
