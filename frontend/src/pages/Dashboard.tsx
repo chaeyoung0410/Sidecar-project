@@ -44,7 +44,7 @@ function currentRoute(): DashboardRoute {
 }
 
 export function Dashboard() {
-  const { state, retry } = useAgentConnection()
+  const { state, agent, configuration, activeBaseUrl, retry, connectManual } = useAgentConnection()
   const workspace = useWorkspace()
   const deckState = useDecks(workspace.currentProject?.id ?? null)
   const commandState = useCommands()
@@ -73,6 +73,14 @@ export function Dashboard() {
     setRoute(nextRoute)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
+
+  useEffect(() => {
+    if (state === 'disconnected' && route !== '#settings') {
+      window.location.hash = '#settings'
+      setRoute('#settings')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }, [state, route])
 
   const navigateAction = (action: DashboardAction) => navigate(actionRoutes[action.type])
   const selectedDeckId = route.startsWith('#decks/') ? Number(route.split('/')[1]) : null
@@ -115,7 +123,7 @@ export function Dashboard() {
               </div>
               <div className="mt-7 grid gap-4 border-t border-white/[0.08] pt-6 sm:grid-cols-3">
                 <div><p className="text-xs text-zinc-500">프로젝트 경로</p><p className="mt-2 break-all font-mono text-xs leading-5 text-zinc-300">{workspace.currentProject?.path ?? '등록된 프로젝트 없음'}</p></div>
-                <div><p className="text-xs text-zinc-500">Mac Agent</p><p className="mt-2 flex items-center gap-2 text-sm font-medium text-zinc-200"><span className={`h-2 w-2 rounded-full ${state === 'connected' ? 'bg-lime' : 'bg-zinc-600'}`} />{state === 'connected' ? '연결됨' : '연결 안 됨'}</p></div>
+                <div><p className="text-xs text-zinc-500">Mac Agent</p><p className="mt-2 flex items-center gap-2 text-sm font-medium text-zinc-200"><span className={`h-2 w-2 rounded-full ${state === 'connected' ? 'bg-lime' : state === 'disconnected' ? 'bg-[#ff453a]' : 'bg-[#ffd60a] animate-pulse'}`} />{state === 'connected' ? '연결됨' : state === 'disconnected' ? '연결할 수 없음' : state === 'discovering' ? 'Mac을 찾는 중…' : '다시 연결하는 중…'}</p></div>
                 <div><p className="text-xs text-zinc-500">현재 Branch</p><p className="mt-2 break-all font-mono text-sm text-zinc-200">{workspace.gitStatus?.branch ?? '—'}</p></div>
               </div>
             </div>
@@ -132,7 +140,7 @@ export function Dashboard() {
           {route === '#git' && <GitStatusPanel status={workspace.gitStatus} loading={workspace.loading} error={workspace.gitError} hasProject={workspace.currentProject !== null} onRefresh={() => void workspace.refresh()} onManageProjects={() => setProjectsOpen(true)} onCommit={workspace.commitChanges} onGetPushPreview={workspace.getPushPreview} onPush={workspace.pushChanges} onGetPullPreview={workspace.getPullPreview} onPull={workspace.pullChanges} />}
           {route === '#notion-journal' && <NotionPanel status={notionState.status} logs={notionState.logs} loading={notionState.loading} saving={notionState.saving} error={notionState.error} projectName={workspace.currentProject?.name ?? null} onRefresh={() => void notionState.refresh()} onSave={notionState.save} />}
           {route === '#actions' && <section id="actions" className="py-12"><div className="mb-7 flex items-end justify-between gap-4"><div><h2 className="text-[30px] font-bold tracking-tight text-white">Actions</h2><p className="mt-2 text-[15px] text-zinc-500">실행할 내용을 확인하고 Action과 Custom Command를 관리합니다.</p></div><button type="button" onClick={() => setActionsOpen(true)} className="rounded-xl bg-[#2c2c2e] px-4 py-2.5 text-sm font-semibold text-white">Action 관리</button></div><CommandPanel project={workspace.currentProject} commands={commandState.commands} runs={commandState.runs} loading={commandState.loading} error={commandState.error} onCreate={commandState.createCommand} onUpdate={commandState.updateCommand} onDelete={commandState.deleteCommand} onRun={commandState.runCommand} onStop={commandState.stopCommand} /></section>}
-          {route === '#settings' && <SettingsPanel connection={state} project={workspace.currentProject} notion={notionState.status} />}
+          {route === '#settings' && <SettingsPanel connection={state} agent={agent} configuration={configuration} activeBaseUrl={activeBaseUrl} project={workspace.currentProject} notion={notionState.status} onRetry={retry} onConnectManual={connectManual} />}
           <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.08] py-6 text-xs text-zinc-600"><span>Local Network 전용</span><span>CodePad · Apple Minimal UI</span></footer>
         </div>
       </div>

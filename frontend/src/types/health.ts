@@ -6,7 +6,16 @@ export interface HealthResponse {
   version: string
 }
 
-export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting'
+export interface AgentInfo {
+  name: string
+  hostname: string
+  local_hostname: string
+  ip: string
+  port: number
+  status: 'running'
+}
+
+export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting' | 'discovering'
 
 export interface AgentConnectedEvent {
   type: 'agent.connected'

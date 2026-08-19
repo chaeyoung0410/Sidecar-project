@@ -4,6 +4,7 @@ const statusCopy = {
   connected: { label: 'Mac Agent 연결됨', dot: 'bg-lime', pulse: false },
   disconnected: { label: '연결 끊김', dot: 'bg-[#ff453a]', pulse: false },
   reconnecting: { label: '다시 연결하는 중', dot: 'bg-[#ffd60a]', pulse: true },
+  discovering: { label: 'Mac Agent를 찾는 중', dot: 'bg-[#ffd60a]', pulse: true },
 } satisfies Record<ConnectionState, { label: string; dot: string; pulse: boolean }>
 
 export function StatusBadge({ state }: { state: ConnectionState }) {

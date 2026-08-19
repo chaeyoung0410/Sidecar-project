@@ -7,8 +7,10 @@ CodePad는 Mac에서 실행되는 로컬 Agent를 iPad PWA에서 확인하고 �
 - React + TypeScript + Vite 기반 반응형 PWA
 - iPad 우선 다크 Dashboard
 - FastAPI `GET /api/health` 상태 확인
+- FastAPI `GET /api/agent/info` Mac hostname, `.local` 주소, 현재 IP 확인
 - FastAPI `WS /ws` 실시간 연결 및 heartbeat
-- 연결 종료 시 지수 백오프 자동 재접속
+- `.local` hostname 우선 연결과 마지막 성공 IP fallback
+- 연결 종료 시 1초, 2초, 5초, 10초 간격 자동 재접속
 - `Connected / Disconnected / Reconnecting` 상태와 수동 재시도
 - FastAPI 시작 시 SQLite/SQLModel 스키마 초기화
 - 로컬 네트워크 접속을 고려한 API 주소 자동 설정
@@ -54,7 +56,7 @@ CodePad는 Mac에서 실행되는 로컬 Agent를 iPad PWA에서 확인하고 �
 cp .env.example .env
 ```
 
-기본값은 Mac 브라우저의 로컬 개발에 맞춰져 있습니다. `.env`는 Git에서 제외됩니다. iPad에서 다른 포트나 HTTPS Agent를 사용한다면 `VITE_API_BASE_URL`을 설정하세요. Gemini와 Notion API Key는 Backend에서만 읽으며 Frontend 응답에는 포함하지 않습니다.
+기본값은 Mac 브라우저의 로컬 개발에 맞춰져 있습니다. `.env`는 Git에서 제외됩니다. Backend 포트를 바꾸면 `AGENT_PORT`와 실제 Uvicorn `--port`를 같은 값으로 설정하세요. iPad에서 다른 포트나 HTTPS Agent를 사용한다면 최초 연결 주소 또는 `VITE_API_BASE_URL`을 설정할 수 있습니다. Gemini와 Notion API Key는 Backend에서만 읽으며 Frontend 응답에는 포함하지 않습니다.
 
 ## Backend 실행
 
@@ -66,7 +68,9 @@ pip install -r requirements-dev.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-확인 주소는 `http://localhost:8000/api/health`, WebSocket 주소는 `ws://localhost:8000/ws`, API 문서는 `http://localhost:8000/docs`입니다. SQLite 파일 `backend/codepad.db`는 첫 실행 시 자동 생성됩니다.
+확인 주소는 `http://localhost:8000/api/health`, Agent 정보는 `http://localhost:8000/api/agent/info`, WebSocket 주소는 `ws://localhost:8000/ws`, API 문서는 `http://localhost:8000/docs`입니다. SQLite 파일 `backend/codepad.db`는 첫 실행 시 자동 생성됩니다.
+
+시작 로그에는 Mac hostname, 권장 `.local` 주소, 현재 IP fallback 주소와 포트가 표시됩니다. iPad의 첫 연결 화면에는 로그의 `Recommended Address`를 입력하는 것을 권장합니다. Uvicorn은 계속 `0.0.0.0`에 bind하므로 같은 로컬 네트워크의 iPad에서 접근할 수 있습니다.
 
 ## Frontend 실행
 
@@ -82,13 +86,35 @@ npm run dev
 
 ## iPad에서 접속
 
-1. Mac의 시스템 설정에서 로컬 IP 주소를 확인합니다. 예: `192.168.0.20`.
-2. Backend와 Frontend를 위와 같이 실행합니다.
-3. `.env`의 `CORS_ORIGINS`에 `http://192.168.0.20:5173`을 추가하고 Backend를 재시작합니다.
-4. iPad Safari에서 `http://192.168.0.20:5173`을 엽니다.
-5. Mac 방화벽이 연결을 묻는 경우 Python과 Node의 로컬 네트워크 접근을 허용합니다.
+1. Backend와 Frontend를 위와 같이 실행합니다.
+2. iPad Safari에서 Vite가 표시한 Network 주소를 엽니다.
+3. 첫 연결이 필요하면 Backend 시작 로그의 `Recommended Address`(예: `chae-young-macbook.local:8000`)를 입력합니다.
+4. Mac 방화벽이 연결을 묻는 경우 Python과 Node의 로컬 네트워크 접근을 허용합니다.
 
-Frontend는 별도 설정이 없으면 현재 페이지의 호스트명과 `8000` 포트를 조합해 Agent에 접속합니다.
+기본 CORS 정책은 명시된 `CORS_ORIGINS`에 더해 localhost, RFC1918 사설 IP, `*.local` origin만 허용합니다. Public origin 전체를 허용하지 않습니다.
+
+## Mac Agent 연결 방식
+
+Frontend는 연결 정보를 브라우저 localStorage에 보관하고 다음 순서로 Agent를 확인합니다.
+
+1. 마지막 연결에서 받은 `.local` hostname
+2. 마지막으로 성공한 로컬 IP
+3. `VITE_API_BASE_URL` 또는 현재 PWA 페이지와 같은 host의 `8000` 포트
+4. 자동 연결 실패 후 사용자가 입력한 주소
+
+연결에 성공하면 `/api/agent/info`에서 현재 `.local` hostname과 IP를 다시 받아 저장합니다. 따라서 Wi-Fi 변경으로 `192.168.x.x` 주소가 달라져도 같은 네트워크에서 `.local` 이름이 해석되면 설정 변경 없이 연결되며, 새 IP도 다음 fallback으로 갱신됩니다. 기존 `codepad.agentUrl`, `codepad.agent-url`, `agentUrl` localStorage 값은 삭제하지 않고 첫 fallback 설정으로 마이그레이션합니다.
+
+REST API와 WebSocket은 별도 주소를 만들지 않습니다. health check가 성공한 동일한 base URL에서 `/api/...`와 `/ws`를 만들며, HTTPS Agent에서는 `wss://`를 사용합니다. 연결이 끊기면 매번 hostname부터 다시 확인하고 1초, 2초, 5초, 10초(이후 10초) backoff로 재시도합니다.
+
+### 연결 실패 해결
+
+- Mac Agent가 실행 중이고 `--host 0.0.0.0`으로 시작했는지 확인합니다.
+- Mac과 iPad가 같은 Wi-Fi 또는 같은 로컬 네트워크에 있는지 확인합니다.
+- macOS 방화벽에서 Python/Uvicorn의 수신 연결이 허용됐는지 확인합니다.
+- `.local` 이름이 해석되지 않으면 Settings의 **연결 설정 변경**에서 시작 로그의 `Fallback Address`를 입력합니다.
+- HTTPS로 제공되는 PWA는 브라우저 mixed-content 정책상 HTTP Agent에 접근하지 못할 수 있으므로 양쪽 프로토콜 구성을 맞춥니다.
+
+브라우저/PWA는 네이티브 Bonjour service browser를 안정적으로 제공하지 않으므로 `_codepad._tcp.local` 자동 탐색은 구현하지 않았습니다. 이 기능은 `.local` DNS 이름 해석을 사용하며, 서로 다른 Wi-Fi나 외부 인터넷을 통한 원격 연결은 지원하지 않습니다.
 
 ## PWA 홈 화면에 추가
 

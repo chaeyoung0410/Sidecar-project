@@ -1,10 +1,4 @@
-const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
-
-export const API_BASE_URL = configuredBaseUrl
-  ? configuredBaseUrl.replace(/\/$/, '')
-  : `${window.location.protocol}//${window.location.hostname}:8000`
-
-export const WEBSOCKET_URL = `${API_BASE_URL.replace(/^http/, 'ws')}/ws`
+import { requireAgentBaseUrl } from './agentConnection'
 
 export class ApiError extends Error {
   constructor(
@@ -16,7 +10,8 @@ export class ApiError extends Error {
 }
 
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const baseUrl = await requireAgentBaseUrl()
+  const response = await fetch(`${baseUrl}${path}`, {
     ...options,
     headers: {
       Accept: 'application/json',

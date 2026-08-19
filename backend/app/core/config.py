@@ -11,8 +11,14 @@ class Settings(BaseSettings):
     app_name: str = "CodePad Agent"
     app_version: str = "0.10.0"
     app_env: str = "development"
+    agent_port: int = 8000
     database_url: str = "sqlite:///./codepad.db"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    cors_origin_regex: str = (
+        r"^https?://(?:localhost|127\.0\.0\.1|[a-z0-9-]+\.local|"
+        r"10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|"
+        r"172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})(?::\d+)?$"
+    )
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.6-flash"
     notion_api_key: str = ""
