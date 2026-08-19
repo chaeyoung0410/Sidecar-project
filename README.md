@@ -189,7 +189,7 @@ Dashboard의 **Manage** 또는 **+ Add action**을 누르면 Action을 관리할
 
 기본 Action은 새 DB에서 최초 한 번만 생성되며 Built-in으로 보호됩니다. 사용자가 만든 Custom Action은 삭제해도 Agent 재시작 시 다시 추가되지 않습니다. Notion Action은 개발일지 작성 영역으로 이동합니다.
 
-Deck의 Quick Action Card는 실행에 집중하도록 상시 관리 버튼을 표시하지 않습니다. 우측 상단 `•••` 메뉴에서 Action 수정, 순서 이동, 현재 Deck에서 제거를 선택할 수 있습니다. Deck에서 제거해도 원본 Action은 유지됩니다. Git, AI Error, Notion, 기본 Command Runner와 같은 Built-in Action은 완전히 삭제할 수 없지만 Deck에서는 제거할 수 있습니다.
+Deck의 Quick Action Card는 짧게 누르면 해당 Sheet를 열고, 약 0.5초 길게 누른 뒤 Drag하면 Grid 안에서 순서를 변경합니다. Drop 즉시 화면 순서가 바뀌고 SQLite에 저장되며 저장 실패 시 이전 배치로 복원됩니다. 우측 상단 `•••` 메뉴에서는 Action 수정과 현재 Deck에서 제거를 선택할 수 있습니다. Deck에서 제거해도 원본 Action은 유지됩니다. Git, AI Error, Notion, 기본 Command Runner와 같은 Built-in Action은 완전히 삭제할 수 없지만 Deck에서는 제거할 수 있습니다.
 
 Quick Action Card를 누르면 별도 페이지로 이동하는 대신 현재 화면 위에 팝업형 Sheet가 열립니다. Git Commit·Push·Pull, AI Error, Notion 개발일지, Saved Command를 Sheet 안에서 확인하고 실행할 수 있으며, 각 Sheet의 `전체 보기` 링크를 통해 기존 상세 페이지도 계속 사용할 수 있습니다.
 

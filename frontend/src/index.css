@@ -78,6 +78,37 @@ section {
 .quick-sheet-opening { animation: quick-sheet-in 200ms ease-out both; }
 .quick-sheet-closing { animation: quick-sheet-out 190ms ease-in both; }
 
+.sortable-action-card {
+  cursor: pointer;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transition: border-color 180ms ease, background-color 180ms ease, opacity 180ms ease, transform 180ms ease;
+}
+
+.sortable-action-card.is-drag-placeholder {
+  cursor: grabbing;
+  opacity: 0.24;
+  transform: scale(0.98);
+}
+
+.quick-action-drag-overlay {
+  pointer-events: none;
+  touch-action: none;
+  opacity: 0.95;
+  transform: scale(1.03);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  animation: quick-action-lift 180ms ease-out both;
+}
+
+@keyframes quick-action-lift {
+  from { opacity: 0.82; transform: scale(0.98); }
+  to { opacity: 0.95; transform: scale(1.03); }
+}
+
 @keyframes quick-overlay-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes quick-overlay-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes quick-sheet-in {

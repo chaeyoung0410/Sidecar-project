@@ -48,20 +48,22 @@ export function useDecks(projectId: number | null) {
     catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Deck 순서를 저장하지 못했습니다.'); await refresh() }
   }, [decks, refresh])
 
-  const moveAction = useCallback(async (deckId: number, actionId: number, direction: -1 | 1) => {
+  const reorderActions = useCallback(async (deckId: number, actionIds: number[]) => {
     const deck = decks.find((item) => item.id === deckId)
     if (!deck) return
-    const index = deck.actions.findIndex((action) => action.id === actionId)
-    const nextIndex = index + direction
-    if (index < 0 || nextIndex < 0 || nextIndex >= deck.actions.length) return
-    const reordered = [...deck.actions]
-    ;[reordered[index], reordered[nextIndex]] = [reordered[nextIndex], reordered[index]]
+    const byId = new Map(deck.actions.map((action) => [action.id, action]))
+    const reordered = actionIds.flatMap((actionId) => byId.get(actionId) ?? [])
+    if (reordered.length !== deck.actions.length) return
     setDecks((current) => current.map((item) => item.id === deckId ? { ...item, actions: reordered } : item))
     try {
-      const updated = await deckApi.reorderDeckActions(deckId, reordered.map((action) => action.id))
+      const updated = await deckApi.reorderDeckActions(deckId, actionIds)
       setDecks((current) => current.map((item) => item.id === deckId ? updated : item))
-    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Action 순서를 저장하지 못했습니다.'); await refresh() }
-  }, [decks, refresh])
+    } catch (requestError) {
+      setDecks((current) => current.map((item) => item.id === deckId ? deck : item))
+      setError(requestError instanceof Error ? `${requestError.message} 이전 배치로 복원했습니다.` : 'Action 순서를 저장하지 못했습니다. 이전 배치로 복원했습니다.')
+      throw requestError
+    }
+  }, [decks])
 
-  return { decks, loading, error, refresh, create, update, remove, moveDeck, addAction, removeAction, moveAction }
+  return { decks, loading, error, refresh, create, update, remove, moveDeck, addAction, removeAction, reorderActions }
 }
