@@ -86,7 +86,7 @@ npm install
 npm run dev
 ```
 
-화면에 표시된 Network 주소를 Mac 또는 iPad Safari에서 엽니다. 기본 포트는 `5173`입니다.
+화면에 표시된 Network 주소를 Mac 또는 iPad Safari에서 엽니다. 기본 포트는 `5173`입니다. Mac의 IP가 바뀌어도 같은 주소를 쓰려면 Backend 시작 로그의 hostname을 사용하세요(예: `http://your-mac.local:5173`). 개발 서버는 로컬 네트워크의 `.local` hostname을 허용합니다.
 
 ## iPad에서 접속
 
@@ -181,7 +181,7 @@ Error detail에서 **Analyze with Gemini**를 누르면 전송될 언어, Framew
 
 Dashboard의 **Manage** 또는 **+ Add action**을 누르면 Action을 관리할 수 있습니다.
 
-- Error Monitor, Git Commit, Git Push, Notion, Saved Command 유형을 추가할 수 있습니다.
+- Error Monitor, Git Commit, Git Push, Git Pull, Notion, Saved Command 유형을 추가할 수 있습니다.
 - 이름과 아이콘을 변경할 수 있습니다.
 - 위·아래 버튼으로 Dashboard 표시 순서를 변경할 수 있습니다.
 - Saved Command 유형은 특정 Command를 연결하거나 Command Runner로 이동하게 설정할 수 있습니다.
@@ -190,6 +190,10 @@ Dashboard의 **Manage** 또는 **+ Add action**을 누르면 Action을 관리할
 기본 Action은 새 DB에서 최초 한 번만 생성되며 Built-in으로 보호됩니다. 사용자가 만든 Custom Action은 삭제해도 Agent 재시작 시 다시 추가되지 않습니다. Notion Action은 개발일지 작성 영역으로 이동합니다.
 
 Deck의 Quick Action Card는 실행에 집중하도록 상시 관리 버튼을 표시하지 않습니다. 우측 상단 `•••` 메뉴에서 Action 수정, 순서 이동, 현재 Deck에서 제거를 선택할 수 있습니다. Deck에서 제거해도 원본 Action은 유지됩니다. Git, AI Error, Notion, 기본 Command Runner와 같은 Built-in Action은 완전히 삭제할 수 없지만 Deck에서는 제거할 수 있습니다.
+
+Quick Action Card를 누르면 별도 페이지로 이동하는 대신 현재 화면 위에 팝업형 Sheet가 열립니다. Git Commit·Push·Pull, AI Error, Notion 개발일지, Saved Command를 Sheet 안에서 확인하고 실행할 수 있으며, 각 Sheet의 `전체 보기` 링크를 통해 기존 상세 페이지도 계속 사용할 수 있습니다.
+
+Sheet는 작업 크기에 따라 `sm`, `md`, `lg` 너비를 사용하고 iPad 세로 화면에서는 하단 Sheet 형태로 표시됩니다. 바깥 영역, 닫기 버튼, `Esc`로 닫을 수 있고 입력 중인 내용이 있으면 저장되지 않은 변경사항을 확인합니다. 실행 중에는 실수로 닫히지 않으며 성공 시 약 0.9초 뒤 자동으로 닫힙니다. 실패, Git Conflict, AI 분석 결과는 확인할 수 있도록 열린 상태를 유지합니다. 열린 동안 배경 스크롤과 키보드 Focus가 Sheet 안에 고정되고, 닫으면 원래 누른 카드로 Focus가 돌아갑니다.
 
 ## Accent Color
 

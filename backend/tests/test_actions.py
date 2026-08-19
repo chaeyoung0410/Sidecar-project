@@ -1,6 +1,11 @@
 from fastapi.testclient import TestClient
 
+from sqlmodel import Session, select
+
+from app.database.database import engine
 from app.main import app
+from app.models import DashboardAction, DashboardState, Deck, DeckAction, Project
+from app.services import ActionService
 
 
 def test_default_actions_and_crud_reorder() -> None:
@@ -54,3 +59,38 @@ def test_builtin_actions_cannot_be_deleted() -> None:
 
     assert response.status_code == 400
     assert "Built-in Actions cannot be deleted" in response.json()["detail"]
+
+
+def test_missing_default_action_is_added_to_existing_quick_actions_deck(tmp_path) -> None:
+    with Session(engine) as session:
+        project = Project(name="Existing", path=str(tmp_path), is_selected=True)
+        commit = DashboardAction(
+            name="Git Commit", type="git_commit", icon="commit", position=0, is_builtin=True
+        )
+        session.add(project)
+        session.add(commit)
+        session.add(DashboardState(id=1))
+        session.commit()
+        session.refresh(project)
+        session.refresh(commit)
+        deck = Deck(project_id=project.id, name="Quick Actions", position=0)
+        session.add(deck)
+        session.commit()
+        session.refresh(deck)
+        session.add(DeckAction(deck_id=deck.id, action_id=commit.id, position=0))
+        session.commit()
+
+    ActionService.seed_defaults()
+    ActionService.seed_defaults()
+
+    with Session(engine) as session:
+        pull_actions = list(session.exec(
+            select(DashboardAction).where(DashboardAction.type == "git_pull")
+        ).all())
+        assert len(pull_actions) == 1
+        assert pull_actions[0].is_builtin is True
+        pull_links = list(session.exec(
+            select(DeckAction).where(DeckAction.action_id == pull_actions[0].id)
+        ).all())
+        assert len(pull_links) == 1
+        assert pull_links[0].position == 3

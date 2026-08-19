@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from sqlmodel import Session, select
 
 from app.database.database import engine
-from app.models import DashboardAction, DashboardState, DeckAction, SavedCommand
+from app.models import DashboardAction, DashboardState, Deck, DeckAction, SavedCommand
 from app.schemas import DashboardActionCreate, DashboardActionUpdate
 
 
@@ -34,11 +34,48 @@ class ActionService:
     @staticmethod
     def seed_defaults() -> None:
         with Session(engine) as session:
-            if session.get(DashboardState, 1):
+            if not session.get(DashboardState, 1):
+                for position, data in enumerate(DEFAULT_ACTIONS):
+                    session.add(DashboardAction(position=position, is_builtin=True, **data))
+                session.add(DashboardState(id=1))
+                session.commit()
                 return
-            for position, data in enumerate(DEFAULT_ACTIONS):
-                session.add(DashboardAction(position=position, is_builtin=True, **data))
-            session.add(DashboardState(id=1))
+
+            existing = {
+                (action.name, action.type)
+                for action in session.exec(select(DashboardAction)).all()
+            }
+            last_action = session.exec(
+                select(DashboardAction).order_by(DashboardAction.position.desc())
+            ).first()
+            next_position = (last_action.position + 1) if last_action else 0
+            quick_action_decks = list(
+                session.exec(select(Deck).where(Deck.name == "Quick Actions")).all()
+            )
+
+            for data in DEFAULT_ACTIONS:
+                if (data["name"], data["type"]) in existing:
+                    continue
+                action = DashboardAction(
+                    position=next_position,
+                    is_builtin=True,
+                    **data,
+                )
+                session.add(action)
+                session.flush()
+                next_position += 1
+
+                for deck in quick_action_decks:
+                    last_link = session.exec(
+                        select(DeckAction)
+                        .where(DeckAction.deck_id == deck.id)
+                        .order_by(DeckAction.position.desc())
+                    ).first()
+                    session.add(DeckAction(
+                        deck_id=deck.id,
+                        action_id=action.id,
+                        position=(last_link.position + 1) if last_link else 0,
+                    ))
             session.commit()
 
     def list(self) -> list[DashboardAction]:
