@@ -4,7 +4,8 @@ from datetime import UTC, datetime
 from sqlmodel import Session, select
 
 from app.database.database import engine
-from app.models import CommandHistory, ErrorHistory, Project
+from app.models import AIHistory, CommandHistory, ErrorHistory, Project
+from app.schemas import ErrorHistoryUpdate
 from app.services.connection_manager import connection_manager
 
 
@@ -46,6 +47,9 @@ def error_event_payload(error: ErrorHistory) -> dict[str, object]:
         "file": error.file,
         "line": error.line,
         "ai_analyzed": error.ai_analyzed,
+        "resolved": error.resolved,
+        "resolved_at": error.resolved_at.isoformat() if error.resolved_at else None,
+        "user_note": error.user_note,
         "created_at": error.created_at.isoformat(),
         "updated_at": error.updated_at.isoformat(),
     }
@@ -63,6 +67,37 @@ class ErrorMonitor:
             if error:
                 session.expunge(error)
             return error
+
+    def update(self, error_id: int, payload: ErrorHistoryUpdate) -> ErrorHistory | None:
+        with Session(engine) as session:
+            error = session.get(ErrorHistory, error_id)
+            if not error:
+                return None
+            now = datetime.now(UTC)
+            if "resolved" in payload.model_fields_set and payload.resolved is not None:
+                error.resolved = payload.resolved
+                error.resolved_at = now if payload.resolved else None
+            if "user_note" in payload.model_fields_set:
+                note = (payload.user_note or "").strip()
+                error.user_note = note or None
+            error.updated_at = now
+            session.add(error)
+            session.commit()
+            session.refresh(error)
+            session.expunge(error)
+            return error
+
+    def delete(self, error_id: int) -> bool:
+        with Session(engine) as session:
+            error = session.get(ErrorHistory, error_id)
+            if not error:
+                return False
+            analyses = session.exec(select(AIHistory).where(AIHistory.error_id == error_id)).all()
+            for analysis in analyses:
+                session.delete(analysis)
+            session.delete(error)
+            session.commit()
+            return True
 
     async def capture(self, run_id: int) -> ErrorHistory | None:
         with Session(engine) as session:

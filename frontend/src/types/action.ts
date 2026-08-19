@@ -8,6 +8,7 @@ export interface DashboardAction {
   icon: DashboardActionIcon
   position: number
   config: { command_id?: number; [key: string]: unknown }
+  is_builtin: boolean
   created_at: string
   updated_at: string
 }

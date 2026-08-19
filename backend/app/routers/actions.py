@@ -51,6 +51,8 @@ def delete_action(action_id: int, session: Session = Depends(get_session)) -> Re
         ActionService(session).delete(action_id)
     except ActionNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except ActionValidationError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

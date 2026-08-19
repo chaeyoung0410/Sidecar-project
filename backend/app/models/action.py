@@ -15,6 +15,7 @@ class DashboardAction(SQLModel, table=True):
     icon: str = Field(default="terminal", max_length=40)
     position: int = Field(default=0, index=True)
     config: dict[str, object] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    is_builtin: bool = Field(default=False, index=True)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 

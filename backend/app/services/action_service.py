@@ -37,7 +37,7 @@ class ActionService:
             if session.get(DashboardState, 1):
                 return
             for position, data in enumerate(DEFAULT_ACTIONS):
-                session.add(DashboardAction(position=position, **data))
+                session.add(DashboardAction(position=position, is_builtin=True, **data))
             session.add(DashboardState(id=1))
             session.commit()
 
@@ -83,6 +83,8 @@ class ActionService:
 
     def delete(self, action_id: int) -> None:
         action = self.get(action_id)
+        if action.is_builtin:
+            raise ActionValidationError("Built-in Actions cannot be deleted; remove them from a Deck instead")
         for link in self.session.exec(select(DeckAction).where(DeckAction.action_id == action_id)).all():
             self.session.delete(link)
         self.session.delete(action)

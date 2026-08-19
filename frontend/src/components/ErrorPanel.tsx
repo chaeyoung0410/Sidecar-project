@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react'
 import { ConfirmationDialog } from './ConfirmationDialog'
 import { analyzeError, getAIStatus, getAnalysisContext, getLatestAnalysis } from '../services/aiApi'
 import type { AIAnalysis, AIStatus, ErrorAnalysisContext } from '../types/ai'
-import type { ErrorHistory } from '../types/error'
+import type { ErrorHistory, ErrorHistoryUpdate } from '../types/error'
 
 interface ErrorPanelProps {
   errors: ErrorHistory[]
   loading: boolean
   error: string | null
   onRefresh: () => void
+  onUpdate: (errorId: number, payload: ErrorHistoryUpdate) => Promise<ErrorHistory>
+  onDelete: (errorId: number) => Promise<void>
 }
 
 function locationLabel(error: ErrorHistory): string {
@@ -32,7 +34,7 @@ async function copyText(text: string): Promise<void> {
   if (!copied) throw new Error('복사하지 못했습니다.')
 }
 
-export function ErrorPanel({ errors, loading, error, onRefresh }: ErrorPanelProps) {
+export function ErrorPanel({ errors, loading, error, onRefresh, onUpdate, onDelete }: ErrorPanelProps) {
   const [selected, setSelected] = useState<ErrorHistory | null>(null)
   const [aiStatus, setAIStatus] = useState<AIStatus | null>(null)
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null)
@@ -40,6 +42,10 @@ export function ErrorPanel({ errors, loading, error, onRefresh }: ErrorPanelProp
   const [analyzing, setAnalyzing] = useState(false)
   const [aiError, setAIError] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+  const [noteEditing, setNoteEditing] = useState(false)
+  const [note, setNote] = useState('')
+  const [managing, setManaging] = useState(false)
+  const [deletePending, setDeletePending] = useState(false)
 
   useEffect(() => {
     void getAIStatus().then(setAIStatus).catch(() => setAIStatus(null))
@@ -51,6 +57,8 @@ export function ErrorPanel({ errors, loading, error, onRefresh }: ErrorPanelProp
 
   const openDetail = async (item: ErrorHistory) => {
     setSelected(item)
+    setNote(item.user_note ?? '')
+    setNoteEditing(false)
     setAnalysis(null)
     setAIError(null)
     try {
@@ -62,6 +70,39 @@ export function ErrorPanel({ errors, loading, error, onRefresh }: ErrorPanelProp
       setAIStatus(currentStatus)
     } catch (requestError) {
       setAIError(requestError instanceof Error ? requestError.message : 'AI 분석을 불러오지 못했습니다.')
+    }
+  }
+
+  const updateMetadata = async (payload: ErrorHistoryUpdate) => {
+    if (!selectedCurrent) return
+    setManaging(true)
+    setAIError(null)
+    try {
+      const updated = await onUpdate(selectedCurrent.id, payload)
+      setSelected(updated)
+      setNote(updated.user_note ?? '')
+      setNoteEditing(false)
+    } catch (requestError) {
+      setAIError(requestError instanceof Error ? requestError.message : 'Error 정보를 저장하지 못했습니다.')
+    } finally {
+      setManaging(false)
+    }
+  }
+
+  const confirmDelete = async () => {
+    if (!selectedCurrent) return
+    setManaging(true)
+    setAIError(null)
+    try {
+      await onDelete(selectedCurrent.id)
+      setDeletePending(false)
+      setSelected(null)
+      setAnalysis(null)
+    } catch (requestError) {
+      setDeletePending(false)
+      setAIError(requestError instanceof Error ? requestError.message : 'Error 기록을 삭제하지 못했습니다.')
+    } finally {
+      setManaging(false)
     }
   }
 
@@ -129,7 +170,7 @@ export function ErrorPanel({ errors, loading, error, onRefresh }: ErrorPanelProp
           {errors.map((item) => (
             <button key={item.id} type="button" onClick={() => void openDetail(item)} className="rounded-[20px] bg-panel p-5 text-left transition hover:bg-[#242426]">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-medium text-[#ff6961]">● Error 감지됨</span>
+                <span className={`text-xs font-medium ${item.resolved ? 'text-lime' : 'text-[#ff6961]'}`}>{item.resolved ? '✓ 해결됨' : '● 미해결'}</span>
                 <time className="text-xs text-zinc-600">{new Date(item.updated_at).toLocaleTimeString('ko-KR')}</time>
               </div>
               <p className="mt-3 truncate font-mono text-xs text-zinc-500">{locationLabel(item)}</p>
@@ -157,7 +198,7 @@ export function ErrorPanel({ errors, loading, error, onRefresh }: ErrorPanelProp
                 <h2 id="error-detail-title" className="mt-2 break-words text-xl font-semibold text-white">{selectedCurrent.error_message}</h2>
                 <p className="mt-2 break-all font-mono text-xs text-zinc-500">{locationLabel(selectedCurrent)}</p>
               </div>
-              <button type="button" onClick={() => { setSelected(null); setContext(null); setAIError(null) }} className="shrink-0 rounded-xl bg-[#2c2c2e] px-4 text-sm text-zinc-200 hover:text-white">닫기</button>
+              <div className="flex shrink-0 items-start gap-2"><details className="relative"><summary aria-label="Error 관리 메뉴" className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-xl bg-[#2c2c2e] tracking-widest text-zinc-300 hover:text-white">•••</summary><div className="absolute right-0 top-12 z-10 w-44 overflow-hidden rounded-xl border border-white/[0.1] bg-[#2c2c2e] p-1 shadow-2xl"><button type="button" disabled={managing} onClick={() => void updateMetadata({ resolved: !selectedCurrent.resolved })} className="w-full rounded-lg px-3 py-2 text-left text-xs text-zinc-200 hover:bg-white/[0.07]">{selectedCurrent.resolved ? '미해결로 표시' : '해결됨으로 표시'}</button><button type="button" onClick={() => setNoteEditing(true)} className="w-full rounded-lg px-3 py-2 text-left text-xs text-zinc-200 hover:bg-white/[0.07]">메모 {selectedCurrent.user_note ? '수정' : '추가'}</button>{selectedCurrent.user_note && <button type="button" disabled={managing} onClick={() => void updateMetadata({ user_note: null })} className="w-full rounded-lg px-3 py-2 text-left text-xs text-zinc-400 hover:bg-white/[0.07]">메모 삭제</button>}<button type="button" onClick={() => setDeletePending(true)} className="w-full rounded-lg px-3 py-2 text-left text-xs text-rose-300 hover:bg-white/[0.07]">Error 삭제</button></div></details><button type="button" onClick={() => { setSelected(null); setContext(null); setAIError(null) }} className="rounded-xl bg-[#2c2c2e] px-4 text-sm text-zinc-200 hover:text-white">닫기</button></div>
             </div>
 
             <dl className="mt-6 grid gap-3 rounded-2xl border border-line bg-ink p-4 text-sm sm:grid-cols-2">
@@ -165,6 +206,11 @@ export function ErrorPanel({ errors, loading, error, onRefresh }: ErrorPanelProp
               <div><dt className="text-zinc-600">발생 시간</dt><dd className="mt-1 text-zinc-300">{new Date(selectedCurrent.created_at).toLocaleString('ko-KR')}</dd></div>
               <div className="sm:col-span-2"><dt className="text-zinc-600">Command</dt><dd className="mt-1 break-all font-mono text-xs text-zinc-300">{selectedCurrent.command}</dd></div>
             </dl>
+
+            <div className="mt-5 grid gap-3 rounded-2xl border border-line bg-ink p-4 sm:grid-cols-[160px_1fr]">
+              <div><p className="text-xs text-zinc-600">상태</p><button type="button" disabled={managing} onClick={() => void updateMetadata({ resolved: !selectedCurrent.resolved })} className={`mt-2 rounded-full px-3 py-1.5 text-xs font-semibold ${selectedCurrent.resolved ? 'bg-lime/10 text-lime' : 'bg-rose-400/10 text-rose-300'}`}>{selectedCurrent.resolved ? '✓ 해결됨' : '● 미해결'}</button>{selectedCurrent.resolved_at && <p className="mt-2 text-[10px] text-zinc-600">{new Date(selectedCurrent.resolved_at).toLocaleString('ko-KR')}</p>}</div>
+              <div><div className="flex items-center justify-between"><p className="text-xs text-zinc-600">메모</p>{!noteEditing && <button type="button" onClick={() => setNoteEditing(true)} className="min-h-0 text-xs text-apple">{selectedCurrent.user_note ? '수정' : '추가'}</button>}</div>{noteEditing ? <div className="mt-2"><textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={20000} rows={3} placeholder="해결 과정이나 참고 내용을 기록하세요." className="w-full resize-y border border-line bg-[#151619] px-3 py-2 text-sm text-zinc-200 outline-none focus:border-apple" /><div className="mt-2 flex justify-end gap-2"><button type="button" onClick={() => { setNote(selectedCurrent.user_note ?? ''); setNoteEditing(false) }} className="min-h-0 px-2 py-1 text-xs text-zinc-500">취소</button><button type="button" disabled={managing} onClick={() => void updateMetadata({ user_note: note })} className="min-h-0 rounded-lg bg-apple px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40">저장</button></div></div> : <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-300">{selectedCurrent.user_note ?? '작성된 메모가 없습니다.'}</p>}</div>
+            </div>
 
             <div className="mt-5 overflow-hidden rounded-2xl border border-line bg-[#050607]">
               <p className="border-b border-line px-4 py-3 font-mono text-xs uppercase tracking-wider text-zinc-600">Stack trace</p>
@@ -191,7 +237,7 @@ export function ErrorPanel({ errors, loading, error, onRefresh }: ErrorPanelProp
               </div>
             )}
 
-            <button type="button" disabled={analyzing || !aiStatus?.configured} onClick={() => void prepareAnalysis()} className="mt-5 w-full rounded-xl bg-apple px-5 py-3 text-sm font-semibold text-white hover:bg-[#409cff] disabled:cursor-not-allowed disabled:opacity-30">
+            <button type="button" disabled={analyzing || !aiStatus?.configured} onClick={() => void prepareAnalysis()} className="mt-5 w-full rounded-xl bg-apple px-5 py-3 text-sm font-semibold text-white hover:bg-apple-hover disabled:cursor-not-allowed disabled:opacity-30">
               {analyzing ? 'Gemini 분석을 준비하는 중…' : analysis ? 'Gemini로 다시 분석하기' : 'Gemini로 분석하기'}
             </button>
             {!aiStatus?.configured && <p className="mt-2 text-center text-xs text-zinc-600">Mac Agent의 .env에 GEMINI_API_KEY를 설정하고 다시 시작하세요.</p>}
@@ -207,6 +253,9 @@ export function ErrorPanel({ errors, loading, error, onRefresh }: ErrorPanelProp
           <div><p className="text-zinc-600">Stack trace</p><pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-5 text-zinc-400">{context?.stack_trace}</pre></div>
           {context?.code_snippet && <div><p className="text-zinc-600">관련 코드 일부</p><pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-5 text-zinc-400">{context.code_snippet}</pre></div>}
         </div>
+      </ConfirmationDialog>
+      <ConfirmationDialog open={deletePending} title="Error 기록을 삭제할까요?" description="이 기록과 연결된 AI 분석 기록도 함께 삭제됩니다. Project와 Command 기록에는 영향을 주지 않습니다." confirmLabel="삭제" busy={managing} onCancel={() => setDeletePending(false)} onConfirm={() => void confirmDelete()}>
+        <p className="rounded-2xl bg-rose-400/[0.06] p-4 text-sm text-zinc-400">Error 원본과 연결된 Gemini 분석만 삭제되며 이 작업은 되돌릴 수 없습니다.</p>
       </ConfirmationDialog>
     </section>
   )

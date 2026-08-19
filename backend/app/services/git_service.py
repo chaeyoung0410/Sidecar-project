@@ -7,6 +7,7 @@ from pathlib import Path
 from app.schemas import (
     ChangedFile,
     GitCommitResponse,
+    GitDiffContext,
     GitPullPreview,
     GitPullResponse,
     GitPushPreview,
@@ -86,6 +87,71 @@ class GitService:
             branch=self._current_branch(),
             message=clean_message,
             files=selected_paths,
+        )
+
+    def diff_context(self, files: list[str], max_characters: int = 30_000) -> GitDiffContext:
+        current_status = self.status()
+        changed_files = {file.path: file for file in current_status.changed_files}
+        selected_paths = list(dict.fromkeys(files))
+        if not selected_paths:
+            raise GitServiceError("Select at least one changed file")
+        unknown_paths = [path for path in selected_paths if path not in changed_files]
+        if unknown_paths:
+            raise GitServiceError(f"Files are no longer changed: {', '.join(unknown_paths)}")
+
+        tracked_paths: list[str] = []
+        untracked_paths: list[str] = []
+        for path in selected_paths:
+            changed = changed_files[path]
+            if changed.status == "?":
+                untracked_paths.append(path)
+            else:
+                tracked_paths.append(path)
+                if changed.original_path:
+                    tracked_paths.append(changed.original_path)
+
+        parts: list[str] = []
+        if tracked_paths:
+            unique_tracked_paths = list(dict.fromkeys(tracked_paths))
+            head_exists = self._run("rev-parse", "--verify", "HEAD", check=False).returncode == 0
+            if head_exists:
+                results = [self._run(
+                    "diff", "--no-ext-diff", "--unified=3", "HEAD", "--",
+                    *unique_tracked_paths, check=False,
+                )]
+            else:
+                results = [
+                    self._run("diff", "--no-ext-diff", "--cached", "--unified=3", "--", *unique_tracked_paths, check=False),
+                    self._run("diff", "--no-ext-diff", "--unified=3", "--", *unique_tracked_paths, check=False),
+                ]
+            for result in results:
+                if result.returncode not in {0, 1}:
+                    raise GitServiceError(result.stderr.strip() or "Unable to create Git diff")
+                parts.append(result.stdout)
+        for path in untracked_paths:
+            result = self._run(
+                "diff", "--no-ext-diff", "--no-index", "--unified=3", "--", "/dev/null", path,
+                check=False,
+            )
+            if result.returncode not in {0, 1}:
+                raise GitServiceError(result.stderr.strip() or f"Unable to read diff for {path}")
+            parts.append(result.stdout)
+
+        full_diff = "\n".join(part for part in parts if part)
+        additions = sum(1 for line in full_diff.splitlines() if line.startswith("+") and not line.startswith("+++"))
+        deletions = sum(1 for line in full_diff.splitlines() if line.startswith("-") and not line.startswith("---"))
+        truncated = len(full_diff) > max_characters
+        diff = full_diff[:max_characters]
+        if truncated:
+            marker = "\n\n[Diff truncated by CodePad]"
+            diff = full_diff[:max(0, max_characters - len(marker))] + marker
+        return GitDiffContext(
+            branch=current_status.branch,
+            files=selected_paths,
+            diff=diff,
+            additions=additions,
+            deletions=deletions,
+            truncated=truncated,
         )
 
     def push_preview(self) -> GitPushPreview:

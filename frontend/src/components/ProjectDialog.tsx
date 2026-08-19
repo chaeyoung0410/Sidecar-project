@@ -131,7 +131,7 @@ export function ProjectDialog({ open, projects, onClose, onCreate, onSelect, onD
           <button
             type="submit"
             disabled={busy || !name.trim() || !path.trim()}
-            className="mt-4 w-full rounded-xl bg-apple px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#409cff] disabled:cursor-not-allowed disabled:opacity-40"
+            className="mt-4 w-full rounded-xl bg-apple px-5 py-3 text-sm font-semibold text-white transition hover:bg-apple-hover disabled:cursor-not-allowed disabled:opacity-40"
           >
             {busy ? '등록하는 중…' : '등록하고 선택'}
           </button>

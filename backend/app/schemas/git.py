@@ -31,6 +31,31 @@ class GitCommitResponse(BaseModel):
     files: list[str]
 
 
+class CommitMessageSuggestionRequest(BaseModel):
+    files: list[str] = Field(min_length=1, max_length=20)
+    language: Literal["en", "ko"] = "en"
+
+
+class GitDiffContext(BaseModel):
+    branch: str
+    files: list[str]
+    diff: str
+    additions: int
+    deletions: int
+    truncated: bool
+
+
+class CommitMessageSuggestions(BaseModel):
+    suggestions: list[str] = Field(min_length=1, max_length=3)
+
+
+class CommitMessageSuggestionResponse(CommitMessageSuggestions):
+    model: str
+    files_analyzed: int
+    diff_characters: int
+    truncated: bool
+
+
 class GitPushRequest(BaseModel):
     confirmed: Literal[True]
 

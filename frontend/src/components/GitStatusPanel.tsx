@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ConfirmationDialog } from './ConfirmationDialog'
-import type { GitCommitResult, GitPullPreview, GitPullResult, GitPushPreview, GitPushResult, GitStatus } from '../types/git'
+import type { CommitMessageSuggestions, GitCommitResult, GitPullPreview, GitPullResult, GitPushPreview, GitPushResult, GitStatus } from '../types/git'
 
 interface GitStatusPanelProps {
   status: GitStatus | null
@@ -10,6 +10,7 @@ interface GitStatusPanelProps {
   onRefresh: () => void
   onManageProjects: () => void
   onCommit: (files: string[], message: string) => Promise<GitCommitResult>
+  onSuggestCommitMessages: (files: string[], language?: 'en' | 'ko') => Promise<CommitMessageSuggestions>
   onGetPushPreview: () => Promise<GitPushPreview>
   onPush: () => Promise<GitPushResult>
   onGetPullPreview: () => Promise<GitPullPreview>
@@ -20,7 +21,7 @@ const statusNames: Record<string, string> = {
   M: 'Modified', A: 'Added', D: 'Deleted', R: 'Renamed', C: 'Copied', '?': 'Untracked', U: 'Conflict',
 }
 
-export function GitStatusPanel({ status, loading, error, hasProject, onRefresh, onManageProjects, onCommit, onGetPushPreview, onPush, onGetPullPreview, onPull }: GitStatusPanelProps) {
+export function GitStatusPanel({ status, loading, error, hasProject, onRefresh, onManageProjects, onCommit, onSuggestCommitMessages, onGetPushPreview, onPush, onGetPullPreview, onPull }: GitStatusPanelProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [message, setMessage] = useState('')
   const [commitOpen, setCommitOpen] = useState(false)
@@ -32,6 +33,8 @@ export function GitStatusPanel({ status, loading, error, hasProject, onRefresh, 
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [suggestions, setSuggestions] = useState<CommitMessageSuggestions | null>(null)
+  const [suggesting, setSuggesting] = useState(false)
 
   useEffect(() => {
     const availablePaths = new Set(status?.changed_files.map((file) => file.path) ?? [])
@@ -39,12 +42,31 @@ export function GitStatusPanel({ status, loading, error, hasProject, onRefresh, 
   }, [status])
 
   const toggleFile = (path: string) => {
+    setSuggestions(null)
     setSelected((current) => {
       const next = new Set(current)
       if (next.has(path)) next.delete(path)
       else next.add(path)
       return next
     })
+  }
+
+  const suggestMessages = async () => {
+    if (selected.size > 20) {
+      setActionError('AI 추천은 한 번에 최대 20개 파일까지 분석할 수 있습니다. 파일 선택 범위를 줄여주세요.')
+      return
+    }
+    setSuggesting(true)
+    setActionError(null)
+    setSuccess(null)
+    try {
+      setSuggestions(await onSuggestCommitMessages([...selected], 'en'))
+    } catch (requestError) {
+      setSuggestions(null)
+      setActionError(requestError instanceof Error ? requestError.message : 'Commit Message 추천에 실패했습니다. 직접 입력해주세요.')
+    } finally {
+      setSuggesting(false)
+    }
   }
 
   const openPushConfirmation = async () => {
@@ -162,7 +184,7 @@ export function GitStatusPanel({ status, loading, error, hasProject, onRefresh, 
       {hasProject && status && (
         <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-[20px] bg-panel p-5">
           <div><p className="font-semibold text-zinc-100">Git Pull</p><p className="mt-1 text-sm leading-6 text-zinc-500">현재 Branch의 원격 변경사항을 로컬 프로젝트로 가져옵니다.</p></div>
-          <button type="button" disabled={busy || loading} onClick={() => void openPullConfirmation()} className="rounded-xl bg-apple px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#409cff] disabled:opacity-40">{busy ? '원격 변경사항을 가져오는 중…' : 'Git Pull'}</button>
+          <button type="button" disabled={busy || loading} onClick={() => void openPullConfirmation()} className="rounded-xl bg-apple px-5 py-2.5 text-sm font-semibold text-white hover:bg-apple-hover disabled:opacity-40">{busy ? '원격 변경사항을 가져오는 중…' : 'Git Pull'}</button>
         </div>
       )}
 
@@ -177,7 +199,7 @@ export function GitStatusPanel({ status, loading, error, hasProject, onRefresh, 
         <>
           <div className="mt-6 flex items-center justify-between">
             <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-zinc-500">
-              <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(status.changed_files.map((file) => file.path)))} className="h-4 w-4 accent-[#b7f75c]" />
+              <input type="checkbox" checked={allSelected} onChange={() => { setSuggestions(null); setSelected(allSelected ? new Set() : new Set(status.changed_files.map((file) => file.path))) }} className="h-4 w-4 accent-apple" />
               전체 선택
             </label>
             <span className="text-xs text-zinc-600">{status.changed_files.length}개 중 {selected.size}개 선택</span>
@@ -185,7 +207,7 @@ export function GitStatusPanel({ status, loading, error, hasProject, onRefresh, 
           <div className="mt-3 divide-y divide-line overflow-hidden rounded-2xl border border-line">
             {status.changed_files.map((file) => (
               <label key={`${file.status}-${file.path}`} className="flex min-h-14 cursor-pointer items-center gap-3 bg-panel px-4 py-3.5 hover:bg-[#242426]">
-                <input type="checkbox" checked={selected.has(file.path)} onChange={() => toggleFile(file.path)} className="h-4 w-4 shrink-0 accent-[#b7f75c]" />
+                <input type="checkbox" checked={selected.has(file.path)} onChange={() => toggleFile(file.path)} className="h-4 w-4 shrink-0 accent-apple" />
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.04] font-mono text-xs font-bold text-lime" aria-hidden="true">{file.status}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-mono text-sm text-zinc-300">{file.path}</span>
@@ -194,9 +216,13 @@ export function GitStatusPanel({ status, loading, error, hasProject, onRefresh, 
               </label>
             ))}
           </div>
+          <div className="mt-4 rounded-2xl border border-white/[0.08] bg-panel p-4 sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-zinc-200">AI Commit Message</p><p className="mt-1 text-xs leading-5 text-zinc-500">선택한 파일의 제한된 Git Diff를 Gemini가 분석해 영어 Commit Message를 추천합니다.</p></div><button type="button" disabled={!selected.size || suggesting || busy} onClick={() => void suggestMessages()} className="rounded-xl bg-white/[0.07] px-4 py-2.5 text-sm font-semibold text-apple hover:bg-white/[0.1] disabled:opacity-30">{suggesting ? 'Gemini가 분석하고 있습니다…' : 'AI로 Commit Message 추천'}</button></div>
+            {suggestions && <div className="mt-4 space-y-2">{suggestions.suggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => setMessage(suggestion)} className={`pressable-card flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm ${message === suggestion ? 'border-apple bg-apple/10 text-white' : 'border-white/[0.08] text-zinc-300 hover:border-apple/30'}`}><span className={`h-3 w-3 shrink-0 rounded-full border ${message === suggestion ? 'border-apple bg-apple' : 'border-zinc-600'}`} />{suggestion}</button>)}<p className="pt-1 text-[10px] text-zinc-600">{suggestions.files_analyzed}개 파일 · {suggestions.diff_characters.toLocaleString()}자 분석{suggestions.truncated ? ' · 큰 Diff 일부만 전송됨' : ''} · {suggestions.model}</p></div>}
+          </div>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
             <input value={message} onChange={(event) => setMessage(event.target.value)} maxLength={500} placeholder="변경 내용을 간단하게 입력하세요." className="min-w-0 flex-1 border border-line bg-panel px-4 py-3 text-sm text-white outline-none focus:border-apple" />
-            <button type="button" disabled={!selected.size || !message.trim() || busy} onClick={() => { setActionError(null); setSuccess(null); setCommitOpen(true) }} className="rounded-xl bg-apple px-6 py-3 text-sm font-semibold text-white hover:bg-[#409cff] disabled:cursor-not-allowed disabled:opacity-40">Git Commit</button>
+            <button type="button" disabled={!selected.size || !message.trim() || busy} onClick={() => { setActionError(null); setSuccess(null); setCommitOpen(true) }} className="rounded-xl bg-apple px-6 py-3 text-sm font-semibold text-white hover:bg-apple-hover disabled:cursor-not-allowed disabled:opacity-40">Git Commit</button>
           </div>
         </>
       ) : (

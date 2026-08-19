@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from app.schemas import AIAnalysisContent, AIJournalContent, DevelopmentJournalContext, ErrorAnalysisContext
+from app.schemas import AIAnalysisContent, AIJournalContent, CommitMessageSuggestions, DevelopmentJournalContext, ErrorAnalysisContext, GitDiffContext
 
 
 class AIProvider(ABC):
@@ -12,4 +12,7 @@ class AIProvider(ABC):
         raise NotImplementedError
 
     async def generate_journal(self, context: DevelopmentJournalContext) -> AIJournalContent:
+        raise NotImplementedError
+
+    async def suggest_commit_messages(self, context: GitDiffContext, language: str) -> CommitMessageSuggestions:
         raise NotImplementedError

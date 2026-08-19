@@ -9,9 +9,11 @@ from app.models import AIHistory, AIJournalDraft, CommandHistory, ErrorHistory, 
 from app.providers import AIProvider, GeminiProvider
 from app.schemas import (
     AIAnalysisRead,
+    CommitMessageSuggestionResponse,
     AIJournalRead,
     DevelopmentJournalContext,
     ErrorAnalysisContext,
+    GitDiffContext,
     JournalCommand,
     JournalError,
 )
@@ -276,6 +278,23 @@ class AIService:
             session.commit()
             session.refresh(draft)
             return AIJournalRead.model_validate(draft)
+
+    async def suggest_commit_messages(
+        self,
+        git_service: GitService,
+        files: list[str],
+        language: str = "en",
+    ) -> CommitMessageSuggestionResponse:
+        context: GitDiffContext = git_service.diff_context(files)
+        provider = self.provider or self._configured_provider()
+        content = await provider.suggest_commit_messages(context, language)
+        return CommitMessageSuggestionResponse(
+            suggestions=content.suggestions,
+            model=provider.model,
+            files_analyzed=len(context.files),
+            diff_characters=len(context.diff),
+            truncated=context.truncated,
+        )
 
     @staticmethod
     def _configured_provider() -> GeminiProvider:

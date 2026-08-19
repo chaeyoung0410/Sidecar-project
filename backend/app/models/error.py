@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from sqlalchemy import Column, Text
 from sqlmodel import Field, SQLModel
 
 
@@ -18,5 +19,8 @@ class ErrorHistory(SQLModel, table=True):
     file: str | None = Field(default=None, max_length=2048)
     line: int | None = None
     ai_analyzed: bool = Field(default=False, index=True)
+    resolved: bool = Field(default=False, index=True)
+    resolved_at: datetime | None = None
+    user_note: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     created_at: datetime = Field(default_factory=utc_now, index=True)
     updated_at: datetime = Field(default_factory=utc_now)

@@ -12,7 +12,8 @@ export default {
         panel: '#1c1c1e',
         line: '#38383a',
         lime: '#30d158',
-        apple: '#0a84ff',
+        apple: 'rgb(var(--accent-rgb) / <alpha-value>)',
+        'apple-hover': 'rgb(var(--accent-hover-rgb) / <alpha-value>)',
       },
       boxShadow: {
         glow: '0 12px 40px rgba(0, 0, 0, 0.22)',

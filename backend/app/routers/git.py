@@ -5,6 +5,8 @@ from app.database import get_session
 from app.schemas import (
     GitCommitRequest,
     GitCommitResponse,
+    CommitMessageSuggestionRequest,
+    CommitMessageSuggestionResponse,
     GitPullPreview,
     GitPullRequest,
     GitPullResponse,
@@ -13,7 +15,9 @@ from app.schemas import (
     GitPushResponse,
     GitStatusResponse,
 )
-from app.services import GitService, ProjectService
+from app.providers.gemini_provider import AIProviderError
+from app.services import AIService, GitService, ProjectService
+from app.services.ai_service import AIConfigurationError, AIServiceError
 from app.services.git_service import GitServiceError, NotGitRepositoryError
 
 
@@ -46,6 +50,23 @@ def commit_changes(
         return selected_git_service(session).commit(payload.files, payload.message)
     except (NotGitRepositoryError, GitServiceError) as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+
+
+@router.post("/commit-message/suggest", response_model=CommitMessageSuggestionResponse)
+async def suggest_commit_message(
+    payload: CommitMessageSuggestionRequest,
+    session: Session = Depends(get_session),
+) -> CommitMessageSuggestionResponse:
+    try:
+        return await AIService().suggest_commit_messages(
+            selected_git_service(session), payload.files, payload.language
+        )
+    except AIConfigurationError as error:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error)) from error
+    except (NotGitRepositoryError, GitServiceError) as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+    except (AIServiceError, AIProviderError) as error:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error)) from error
 
 
 @router.get("/push-preview", response_model=GitPushPreview)

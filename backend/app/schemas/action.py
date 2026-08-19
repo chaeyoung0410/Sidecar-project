@@ -28,6 +28,7 @@ class DashboardActionRead(BaseModel):
     icon: ActionIcon
     position: int
     config: dict[str, object]
+    is_builtin: bool
     created_at: datetime
     updated_at: datetime
 

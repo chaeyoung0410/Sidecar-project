@@ -9,6 +9,7 @@ def test_default_actions_and_crud_reorder() -> None:
         assert [action["type"] for action in defaults] == [
             "ai_error", "git_commit", "git_push", "git_pull", "notion", "command"
         ]
+        assert all(action["is_builtin"] for action in defaults)
 
         created = client.post(
             "/api/actions",
@@ -46,11 +47,10 @@ def test_action_reorder_rejects_incomplete_list() -> None:
         assert response.status_code == 400
 
 
-def test_deleting_every_action_does_not_reseed_defaults() -> None:
+def test_builtin_actions_cannot_be_deleted() -> None:
     with TestClient(app) as client:
-        for action in client.get("/api/actions").json():
-            assert client.delete(f"/api/actions/{action['id']}").status_code == 204
-        assert client.get("/api/actions").json() == []
+        actions = client.get("/api/actions").json()
+        response = client.delete(f"/api/actions/{actions[0]['id']}")
 
-    with TestClient(app) as client:
-        assert client.get("/api/actions").json() == []
+    assert response.status_code == 400
+    assert "Built-in Actions cannot be deleted" in response.json()["detail"]

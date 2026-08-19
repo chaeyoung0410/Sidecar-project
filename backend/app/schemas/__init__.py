@@ -20,10 +20,14 @@ from app.schemas.command import (
     SavedCommandRead,
     SavedCommandUpdate,
 )
-from app.schemas.error import ErrorHistoryRead
+from app.schemas.error import ErrorHistoryRead, ErrorHistoryUpdate
 from app.schemas.deck import DeckActionAdd, DeckActionOrder, DeckCreate, DeckRead, DeckReorder, DeckUpdate
 from app.schemas.git import (
     ChangedFile,
+    CommitMessageSuggestionRequest,
+    CommitMessageSuggestionResponse,
+    CommitMessageSuggestions,
+    GitDiffContext,
     GitCommitRequest,
     GitCommitResponse,
     GitPullPreview,
@@ -47,6 +51,9 @@ __all__ = [
     "AIJournalGenerateRequest",
     "AIJournalRead",
     "ChangedFile",
+    "CommitMessageSuggestionRequest",
+    "CommitMessageSuggestionResponse",
+    "CommitMessageSuggestions",
     "CommandRunRead",
     "CommandRunRequest",
     "CommandStopRequest",
@@ -61,10 +68,12 @@ __all__ = [
     "DeckReorder",
     "DeckUpdate",
     "ErrorHistoryRead",
+    "ErrorHistoryUpdate",
     "ErrorAnalysisContext",
     "DevelopmentJournalContext",
     "GitCommitRequest",
     "GitCommitResponse",
+    "GitDiffContext",
     "GitPullPreview",
     "GitPullRequest",
     "GitPullResponse",

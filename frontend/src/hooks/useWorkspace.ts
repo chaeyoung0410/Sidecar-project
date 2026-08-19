@@ -6,6 +6,7 @@ import {
   getPushPreview,
   pullCurrentBranch,
   pushCurrentBranch,
+  suggestCommitMessages,
 } from '../services/gitApi'
 import {
   createProject as createProjectRequest,
@@ -108,6 +109,7 @@ export function useWorkspace() {
     updateProject,
     deleteProject,
     commitChanges,
+    suggestCommitMessages,
     getPushPreview,
     pushChanges,
     getPullPreview,

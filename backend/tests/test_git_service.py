@@ -115,6 +115,32 @@ def test_commit_only_includes_selected_files(tmp_path: Path) -> None:
     assert remaining[0].staged is True
 
 
+def test_diff_context_only_contains_selected_files_and_is_bounded(tmp_path: Path) -> None:
+    initialize_repository(tmp_path)
+    selected = tmp_path / "selected.txt"
+    excluded = tmp_path / "excluded.txt"
+    selected.write_text("initial\n", encoding="utf-8")
+    excluded.write_text("private initial\n", encoding="utf-8")
+    run_git(tmp_path, "add", "--", "selected.txt", "excluded.txt")
+    run_git(tmp_path, "commit", "-m", "Initial")
+    selected.write_text("initial\nselected change\n", encoding="utf-8")
+    excluded.write_text("private secret change\n", encoding="utf-8")
+
+    service = GitService(1, "Test", str(tmp_path))
+    context = service.diff_context(["selected.txt"], max_characters=500)
+
+    assert context.files == ["selected.txt"]
+    assert "selected change" in context.diff
+    assert "private secret change" not in context.diff
+    assert context.additions == 1
+    assert context.truncated is False
+
+    bounded = service.diff_context(["selected.txt"], max_characters=80)
+    assert bounded.truncated is True
+    assert "[Diff truncated by CodePad]" in bounded.diff
+    assert len(bounded.diff) <= 80
+
+
 def test_pushes_current_branch_to_origin_without_force(tmp_path: Path) -> None:
     repository = tmp_path / "repository"
     remote = tmp_path / "remote.git"

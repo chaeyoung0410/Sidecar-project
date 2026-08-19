@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { actionIcons } from './actionMetadata'
 import type { DashboardAction, DashboardActionIcon, DashboardActionInput, DashboardActionType } from '../types/action'
 import type { SavedCommand } from '../types/command'
@@ -12,6 +12,7 @@ interface ActionManagerProps {
   onUpdate: (actionId: number, payload: DashboardActionInput) => Promise<void>
   onDelete: (actionId: number) => Promise<void>
   onMove: (actionId: number, direction: -1 | 1) => Promise<void>
+  initialAction?: DashboardAction | null
 }
 
 const typeLabels: Record<DashboardActionType, string> = {
@@ -24,11 +25,18 @@ const defaultIcons: Record<DashboardActionType, DashboardActionIcon> = {
 
 const emptyForm: DashboardActionInput = { name: '', type: 'command', icon: 'terminal', config: {} }
 
-export function ActionManager({ open, actions, commands, onClose, onCreate, onUpdate, onDelete, onMove }: ActionManagerProps) {
+export function ActionManager({ open, actions, commands, onClose, onCreate, onUpdate, onDelete, onMove, initialAction = null }: ActionManagerProps) {
   const [form, setForm] = useState<DashboardActionInput>(emptyForm)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    setEditingId(initialAction?.id ?? null)
+    setForm(initialAction ? { name: initialAction.name, type: initialAction.type, icon: initialAction.icon, config: initialAction.config } : emptyForm)
+    setError(null)
+  }, [open, initialAction])
 
   if (!open) return null
 
@@ -71,7 +79,7 @@ export function ActionManager({ open, actions, commands, onClose, onCreate, onUp
                 <button type="button" disabled={busy || index === 0} onClick={() => void onMove(action.id, -1)} aria-label={`${action.name} 위로 이동`} className="rounded-lg border border-line px-2 text-xs text-zinc-400 disabled:opacity-20">↑</button>
                 <button type="button" disabled={busy || index === actions.length - 1} onClick={() => void onMove(action.id, 1)} aria-label={`${action.name} 아래로 이동`} className="rounded-lg border border-line px-2 text-xs text-zinc-400 disabled:opacity-20">↓</button>
                 <button type="button" disabled={busy} onClick={() => edit(action)} className="rounded-lg px-2 text-xs text-zinc-300 hover:text-white">수정</button>
-                <button type="button" disabled={busy} onClick={() => { if (window.confirm(`${action.name} Action을 Dashboard에서 삭제할까요?`)) void onDelete(action.id).catch((requestError: unknown) => setError(requestError instanceof Error ? requestError.message : 'Action을 삭제하지 못했습니다.')) }} className="rounded-lg px-2 text-xs text-zinc-500 hover:text-[#ff6961]">삭제</button>
+                {action.is_builtin ? <span className="self-center px-2 text-[10px] text-zinc-600">Built-in</span> : <button type="button" disabled={busy} onClick={() => { if (window.confirm(`${action.name} Action을 완전히 삭제할까요? 연결된 Deck에서도 제거됩니다.`)) void onDelete(action.id).catch((requestError: unknown) => setError(requestError instanceof Error ? requestError.message : 'Action을 삭제하지 못했습니다.')) }} className="rounded-lg px-2 text-xs text-zinc-500 hover:text-[#ff6961]">삭제</button>}
               </div>
             </div>
           ))}
@@ -91,7 +99,7 @@ export function ActionManager({ open, actions, commands, onClose, onCreate, onUp
           )}
 
           {error && <p role="alert" className="mt-3 text-sm text-rose-400">{error}</p>}
-          <button type="submit" disabled={busy || !form.name.trim()} className="mt-4 w-full rounded-xl bg-apple px-5 py-3 text-sm font-semibold text-white hover:bg-[#409cff] disabled:opacity-40">{busy ? '저장하는 중…' : editingId === null ? 'Dashboard에 추가' : '변경사항 저장'}</button>
+          <button type="submit" disabled={busy || !form.name.trim()} className="mt-4 w-full rounded-xl bg-apple px-5 py-3 text-sm font-semibold text-white hover:bg-apple-hover disabled:opacity-40">{busy ? '저장하는 중…' : editingId === null ? 'Dashboard에 추가' : '변경사항 저장'}</button>
         </form>
       </section>
     </div>

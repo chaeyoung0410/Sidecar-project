@@ -27,11 +27,15 @@ CodePad는 Mac에서 실행되는 로컬 Agent를 iPad PWA에서 확인하고 �
 - Command stderr의 실시간 오류 감지와 WebSocket 전송
 - 오류 메시지, stack trace, 파일명, 라인 번호 자동 추출 및 SQLite 저장
 - 최근 오류 카드와 상세 화면
+- Error 해결/미해결 상태, 사용자 메모 및 확인 삭제
 - Gemini Provider 기반 오류 원인·설명·해결 단계 구조화
 - 분석 전 외부 전송 Context 확인
 - AI 분석 기록 SQLite 저장 및 코드·명령 복사
 - Dashboard Action 추가·편집·삭제·순서 변경
 - Action 이름·아이콘·유형·Saved Command 연결 설정
+- Deck Action의 `•••` 관리 메뉴와 Built-in Action 삭제 보호
+- 선택한 Git Diff 기반 Gemini Commit Message 후보 3개 추천
+- Blue, Purple, Green, Orange, Pink Accent Color 설정
 - Dashboard 설정 SQLite 영구 저장
 - Notion 연결 상태 및 대상 Data Source 확인
 - 제목·본문·태그를 검토한 뒤 Notion 개발일지 페이지 생성
@@ -138,6 +142,8 @@ iPad Safari에서 CodePad를 연 뒤 공유 버튼을 누르고 **홈 화면에 
 
 CodePad는 선택한 파일만 Commit하며 선택하지 않은 staged 파일도 Commit에 포함하지 않습니다. Push 대상은 현재 checkout된 branch와 `origin`으로 고정됩니다. Force push는 지원하지 않습니다. Git 인증이 필요한 경우 Mac에 설정된 SSH key 또는 credential helper를 사용하며, Agent가 대화형 비밀번호 입력을 요청하지는 않습니다.
 
+Commit할 파일을 선택한 뒤 **AI로 Commit Message 추천**을 누르면 Gemini가 영어 Commit Message 후보를 최대 3개 생성합니다. 선택한 변경 파일만 `git diff` 대상으로 사용하며 최대 20개 파일, 최대 30,000자의 Diff만 전송합니다. 큰 Diff는 잘린 사실을 UI에 표시합니다. 추천 문구를 선택해도 입력창에서 자유롭게 수정할 수 있고, 기존 확인 화면을 거쳐야만 Commit됩니다. Gemini는 자동 Commit이나 Push를 실행하지 않으며, 추천 실패 시에도 직접 입력하는 기존 Commit 흐름은 그대로 사용할 수 있습니다.
+
 ## Command Runner
 
 1. 먼저 실행 대상 Project를 선택합니다.
@@ -153,6 +159,8 @@ CodePad는 선택한 파일만 Commit하며 선택하지 않은 staged 파일도
 CodePad가 실행한 Command에서 stderr가 발생하면 실행별 오류 기록을 생성하고 WebSocket으로 Dashboard에 즉시 전달합니다. 추가 stderr는 같은 기록의 stack trace에 이어지며 최근 100,000자까지 저장됩니다.
 
 **Error monitor**에서 시간, 프로젝트, 파일과 라인, 오류 요약을 확인할 수 있습니다. 카드를 누르면 실행 명령과 전체 stack trace가 표시됩니다. 일반적인 Python traceback과 `file.ts:27` 형태의 위치를 자동 인식합니다. 일부 개발 도구는 정상 진행 정보도 stderr로 출력하므로 Phase 6에서는 해당 출력도 오류 후보로 기록될 수 있습니다. AI 분석은 Phase 7에서 연결합니다.
+
+Error 상세의 상태 버튼 또는 `•••` 메뉴에서 해결 여부를 변경하고 개인 메모를 추가·수정·삭제할 수 있습니다. Error Message, Stack Trace, 파일, 줄 번호, 발생 시간, 실행 Command 원본은 수정할 수 없습니다. Error 기록을 삭제하면 확인 절차 후 연결된 AI 분석만 함께 정리되며 Project와 Command 기록은 유지됩니다.
 
 ## Gemini Error Assistant
 
@@ -179,7 +187,15 @@ Dashboard의 **Manage** 또는 **+ Add action**을 누르면 Action을 관리할
 - Saved Command 유형은 특정 Command를 연결하거나 Command Runner로 이동하게 설정할 수 있습니다.
 - 특정 Command를 연결한 Action도 실행 전 명령·프로젝트·작업 폴더 확인을 반드시 거칩니다.
 
-기본 Action은 새 DB에서 최초 한 번만 생성됩니다. 모든 Action을 삭제한 경우에도 Agent 재시작 시 자동으로 다시 추가되지 않습니다. Notion Action은 개발일지 작성 영역으로 이동합니다.
+기본 Action은 새 DB에서 최초 한 번만 생성되며 Built-in으로 보호됩니다. 사용자가 만든 Custom Action은 삭제해도 Agent 재시작 시 다시 추가되지 않습니다. Notion Action은 개발일지 작성 영역으로 이동합니다.
+
+Deck의 Quick Action Card는 실행에 집중하도록 상시 관리 버튼을 표시하지 않습니다. 우측 상단 `•••` 메뉴에서 Action 수정, 순서 이동, 현재 Deck에서 제거를 선택할 수 있습니다. Deck에서 제거해도 원본 Action은 유지됩니다. Git, AI Error, Notion, 기본 Command Runner와 같은 Built-in Action은 완전히 삭제할 수 없지만 Deck에서는 제거할 수 있습니다.
+
+## Accent Color
+
+Settings의 **화면 → Accent Color**에서 Blue, Purple, Green, Orange, Pink 중 하나를 선택할 수 있습니다. 선택값은 localStorage에 저장되어 새로고침과 PWA 재실행 후에도 유지됩니다. 배경과 카드의 Dark/Neutral 구조는 유지하고 Primary Button, 선택 메뉴, 링크, focus ring과 Action 아이콘에만 Accent를 적용합니다. Error의 Red와 성공·연결 상태의 Green은 의미 보존을 위해 테마 영향을 받지 않습니다.
+
+카드 press와 페이지 진입에는 짧은 scale/opacity/translate 효과만 사용합니다. 운영체제에서 `prefers-reduced-motion: reduce`를 설정한 경우 Animation과 부드러운 scroll을 최소화합니다.
 
 ## Notion 개발일지
 

@@ -20,6 +20,14 @@ export interface GitCommitResult {
   files: string[]
 }
 
+export interface CommitMessageSuggestions {
+  suggestions: string[]
+  model: string
+  files_analyzed: number
+  diff_characters: number
+  truncated: boolean
+}
+
 export interface GitPushPreview {
   repository: string
   branch: string

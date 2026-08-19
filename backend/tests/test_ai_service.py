@@ -3,13 +3,13 @@ import json
 from pathlib import Path
 
 import httpx
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.database.database import engine
 from app.models import AIJournalDraft, CommandHistory, ErrorHistory, Project
 from app.providers.ai_provider import AIProvider
 from app.providers.gemini_provider import GeminiProvider
-from app.schemas import AIAnalysisContent, AIJournalContent, DevelopmentJournalContext, ErrorAnalysisContext
+from app.schemas import AIAnalysisContent, AIJournalContent, CommitMessageSuggestions, DevelopmentJournalContext, ErrorAnalysisContext, GitDiffContext
 from app.services.ai_service import AIService, collect_code_snippet
 
 
@@ -36,6 +36,13 @@ class FakeProvider(AIProvider):
             content="완료\n- Phase 10 구현\n\n발생한 오류\n- 기록 없음\n\n해결\n- 기록 없음\n\n다음 작업\n- 검토 후 Notion 저장",
             tags=["CodePad", "AI"],
         )
+
+    async def suggest_commit_messages(self, context: GitDiffContext, language: str) -> CommitMessageSuggestions:
+        return CommitMessageSuggestions(suggestions=[
+            "Add error history management",
+            "Improve error resolution workflow",
+            "Support editable error notes",
+        ])
 
 
 def create_error(project_path: Path) -> int:
@@ -202,3 +209,52 @@ def test_gemini_provider_generates_structured_journal() -> None:
 
     assert body["generationConfig"]["responseJsonSchema"]["required"] == ["title", "content", "tags"]
     assert result.title == "오늘의 CodePad"
+
+
+def test_gemini_provider_generates_bounded_commit_message_suggestions() -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content)
+        result = {"suggestions": [" Add error notes ", "Fix reconnect logic\nwithout noise", "Add error notes"]}
+        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": json.dumps(result)}]}}]})
+
+    async def run_provider() -> CommitMessageSuggestions:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            provider = GeminiProvider("secret-key", "gemini-test", client)
+            return await provider.suggest_commit_messages(GitDiffContext(
+                branch="main",
+                files=["app.py"],
+                diff="+print('safe')",
+                additions=1,
+                deletions=0,
+                truncated=False,
+            ), "en")
+
+    result = asyncio.run(run_provider())
+
+    assert result.suggestions == ["Add error notes", "Fix reconnect logic without noise"]
+    assert "untrusted data" in captured["body"]["system_instruction"]["parts"][0]["text"]
+
+
+def test_ai_service_returns_commit_suggestions_without_saving_history() -> None:
+    class FakeGitService:
+        def diff_context(self, files: list[str]) -> GitDiffContext:
+            return GitDiffContext(
+                branch="main",
+                files=files,
+                diff="+resolved = True",
+                additions=1,
+                deletions=0,
+                truncated=False,
+            )
+
+    result = asyncio.run(AIService(FakeProvider()).suggest_commit_messages(
+        FakeGitService(), ["backend/app/models/error.py"], "en"
+    ))
+
+    assert len(result.suggestions) == 3
+    assert result.model == "fake-model"
+    assert result.files_analyzed == 1
+    with Session(engine) as session:
+        assert session.exec(select(AIJournalDraft)).all() == []

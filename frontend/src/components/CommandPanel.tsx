@@ -172,7 +172,7 @@ export function CommandPanel({ project, commands, runs, loading, error, onCreate
               <input required value={form.command} onChange={(event) => setForm({ ...form, command: event.target.value })} placeholder="실행 Command · uvicorn app.main:app --reload" className="w-full border border-line bg-ink px-4 py-3 font-mono text-sm text-white outline-none focus:border-apple" />
               <input required value={form.working_directory} onChange={(event) => setForm({ ...form, working_directory: event.target.value })} placeholder="Working Directory · backend" className="w-full border border-line bg-ink px-4 py-3 font-mono text-sm text-white outline-none focus:border-apple" />
             </div>
-            <button type="submit" disabled={busy || !form.name.trim() || !form.command.trim() || !form.working_directory.trim()} className="mt-3 w-full rounded-xl bg-apple px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#409cff] disabled:cursor-not-allowed disabled:opacity-30">{editingId === null ? 'Command 저장' : '변경사항 저장'}</button>
+            <button type="submit" disabled={busy || !form.name.trim() || !form.command.trim() || !form.working_directory.trim()} className="mt-3 w-full rounded-xl bg-apple px-4 py-2.5 text-sm font-semibold text-white hover:bg-apple-hover disabled:cursor-not-allowed disabled:opacity-30">{editingId === null ? 'Command 저장' : '변경사항 저장'}</button>
           </form>
         </div>
 

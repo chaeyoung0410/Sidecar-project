@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { listErrors } from '../services/errorApi'
-import type { ErrorHistory } from '../types/error'
+import { deleteError, listErrors, updateError } from '../services/errorApi'
+import type { ErrorHistory, ErrorHistoryUpdate } from '../types/error'
 import type { AgentEvent } from '../types/health'
 
 export function useErrors() {
@@ -44,5 +44,16 @@ export function useErrors() {
     return () => window.removeEventListener('codepad:agent-event', handleAgentEvent)
   }, [refresh])
 
-  return { errors, loading, error, refresh }
+  const update = useCallback(async (errorId: number, payload: ErrorHistoryUpdate) => {
+    const result = await updateError(errorId, payload)
+    setErrors((current) => current.map((item) => item.id === errorId ? result : item))
+    return result
+  }, [])
+
+  const remove = useCallback(async (errorId: number) => {
+    await deleteError(errorId)
+    setErrors((current) => current.filter((item) => item.id !== errorId))
+  }, [])
+
+  return { errors, loading, error, refresh, update, remove }
 }

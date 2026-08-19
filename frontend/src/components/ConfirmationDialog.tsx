@@ -34,7 +34,7 @@ export function ConfirmationDialog({
         <div className="mt-6">{children}</div>
         <div className="mt-6 grid grid-cols-2 gap-3">
           <button type="button" disabled={busy} onClick={onCancel} className="rounded-xl bg-[#2c2c2e] px-4 py-3 text-sm font-semibold text-zinc-200 hover:bg-[#3a3a3c] disabled:opacity-40">취소</button>
-          <button type="button" disabled={busy || disabled} onClick={onConfirm} className="rounded-xl bg-apple px-4 py-3 text-sm font-semibold text-white hover:bg-[#409cff] disabled:cursor-not-allowed disabled:opacity-40">
+          <button type="button" disabled={busy || disabled} onClick={onConfirm} className="rounded-xl bg-apple px-4 py-3 text-sm font-semibold text-white hover:bg-apple-hover disabled:cursor-not-allowed disabled:opacity-40">
             {busy ? '처리 중…' : confirmLabel}
           </button>
         </div>

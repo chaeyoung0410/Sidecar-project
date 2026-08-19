@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { getAIStatus } from '../services/aiApi'
 import type { AgentConnection } from '../services/agentConnection'
+import { accentThemes, loadAccentTheme, saveAccentTheme, type AccentTheme } from '../services/theme'
 import type { AIStatus } from '../types/ai'
 import type { AgentInfo, ConnectionState } from '../types/health'
 import type { NotionStatus } from '../types/notion'
@@ -41,6 +42,7 @@ export function SettingsPanel({ connection, agent, configuration, activeBaseUrl,
   const [manualUrl, setManualUrl] = useState('')
   const [manualError, setManualError] = useState<string | null>(null)
   const [manualBusy, setManualBusy] = useState(false)
+  const [accentTheme, setAccentTheme] = useState<AccentTheme>(loadAccentTheme)
 
   useEffect(() => { void getAIStatus().then(setAI).catch(() => setAI(null)) }, [])
   useEffect(() => { if (connection === 'disconnected') setEditingConnection(true) }, [connection])
@@ -57,6 +59,11 @@ export function SettingsPanel({ connection, agent, configuration, activeBaseUrl,
     } finally {
       setManualBusy(false)
     }
+  }
+
+  const selectAccent = (theme: AccentTheme) => {
+    setAccentTheme(theme)
+    saveAccentTheme(theme)
   }
 
   const storedAddress = configuration.hostname
@@ -76,7 +83,7 @@ export function SettingsPanel({ connection, agent, configuration, activeBaseUrl,
       </div></div>
       <div><h3 className="mb-2 px-4 text-[13px] font-medium text-zinc-500">프로젝트</h3><div className="divide-y divide-white/[0.08] overflow-hidden rounded-[20px] bg-panel"><SettingRow title="현재 프로젝트" detail={project?.name ?? '선택된 프로젝트가 없습니다.'} /><SettingRow title="프로젝트 경로" detail={project?.path ?? 'Project 메뉴에서 프로젝트를 등록하세요.'} /></div></div>
       <div><h3 className="mb-2 px-4 text-[13px] font-medium text-zinc-500">연동 서비스</h3><div className="divide-y divide-white/[0.08] overflow-hidden rounded-[20px] bg-panel"><SettingRow title="Gemini" detail={ai?.configured ? ai.model : 'GEMINI_API_KEY가 설정되지 않았습니다.'} status={ai?.configured ? 'ok' : 'warning'} /><SettingRow title="Notion" detail={notion?.connected ? notion.destination ?? 'Data Source 연결됨' : notion?.message ?? '연결 상태를 확인하지 못했습니다.'} status={notion?.connected ? 'ok' : 'warning'} /></div></div>
-      <div><h3 className="mb-2 px-4 text-[13px] font-medium text-zinc-500">화면</h3><div className="overflow-hidden rounded-[20px] bg-panel"><SettingRow title="Dark Mode" detail="Apple 기기의 시스템 UI에 맞춘 Dark Theme를 사용합니다." status="ok" /></div></div>
+      <div><h3 className="mb-2 px-4 text-[13px] font-medium text-zinc-500">화면</h3><div className="overflow-hidden rounded-[20px] bg-panel"><SettingRow title="Dark Mode" detail="Apple 기기의 시스템 UI에 맞춘 Dark Theme를 사용합니다." status="ok" /><div className="border-t border-white/[0.08] px-4 py-4"><p className="text-[15px] font-medium text-zinc-100">Accent Color</p><p className="mt-1 text-[13px] text-zinc-500">버튼과 선택 상태에 사용할 색상을 고릅니다.</p><div className="mt-4 flex flex-wrap gap-3">{(Object.entries(accentThemes) as [AccentTheme, (typeof accentThemes)[AccentTheme]][]).map(([theme, colors]) => <button key={theme} type="button" aria-pressed={accentTheme === theme} onClick={() => selectAccent(theme)} className={`flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium transition ${accentTheme === theme ? 'border-apple bg-apple/10 text-white' : 'border-white/[0.1] text-zinc-400 hover:border-white/20'}`}><span className="h-3 w-3 rounded-full" style={{ backgroundColor: colors.primary }} />{colors.label}</button>)}</div></div></div></div>
     </div>
   </section>
 }

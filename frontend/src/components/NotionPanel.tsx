@@ -116,7 +116,7 @@ export function NotionPanel({ status, logs, loading, saving, error, projectName,
             <p className="text-xs leading-5 text-zinc-600">{projectName ? `현재 프로젝트 · ${projectName}` : '프로젝트 없이도 개발일지를 저장할 수 있습니다.'}</p>
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
               <button type="button" disabled={!projectName || !aiStatus?.configured || generating} onClick={() => void prepareGeneration()} className="rounded-xl bg-[#2c2c2e] px-4 py-3 text-sm font-semibold text-white hover:bg-[#3a3a3c] disabled:cursor-not-allowed disabled:opacity-30">{generating ? 'Gemini가 생성하는 중…' : 'AI로 개발일지 생성'}</button>
-              <button type="submit" disabled={!status?.connected || saving} className="shrink-0 rounded-xl bg-apple px-5 py-3 text-sm font-semibold text-white hover:bg-[#409cff] disabled:cursor-not-allowed disabled:opacity-30">Notion에 저장</button>
+              <button type="submit" disabled={!status?.connected || saving} className="shrink-0 rounded-xl bg-apple px-5 py-3 text-sm font-semibold text-white hover:bg-apple-hover disabled:cursor-not-allowed disabled:opacity-30">Notion에 저장</button>
             </div>
           </div>
           {!aiStatus?.configured && <p className="text-right text-xs text-zinc-600">AI 초안을 생성하려면 GEMINI_API_KEY를 설정하세요.</p>}
