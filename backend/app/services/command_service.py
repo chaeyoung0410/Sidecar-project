@@ -220,9 +220,11 @@ class CommandRunner:
             current = self.get_run(run_id)
             if current.status != "stopped":
                 self._set_finished(run_id, "succeeded" if exit_code == 0 else "failed", exit_code)
+                await error_monitor.capture(run_id)
         except (OSError, ValueError) as error:
             self._append_output(run_id, "stderr", str(error))
             self._set_finished(run_id, "failed", None)
+            await error_monitor.capture(run_id)
         finally:
             self._processes.pop(run_id, None)
             self._locks.pop(run_id, None)

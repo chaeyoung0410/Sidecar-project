@@ -1,8 +1,12 @@
 import { apiRequest } from './api'
-import type { CommitMessageSuggestions, GitCommitResult, GitPullPreview, GitPullResult, GitPushPreview, GitPushResult, GitStatus } from '../types/git'
+import type { CommitMessageSuggestions, GitCommitResult, GitPullPreview, GitPullResult, GitPushPreview, GitPushResult, GitRemoteStatus, GitStatus } from '../types/git'
 
 export function getGitStatus(): Promise<GitStatus> {
   return apiRequest<GitStatus>('/api/git/status')
+}
+
+export function refreshRemoteStatus(): Promise<GitRemoteStatus> {
+  return apiRequest<GitRemoteStatus>('/api/git/remote/refresh', { method: 'POST' })
 }
 
 export function commitChanges(files: string[], message: string): Promise<GitCommitResult> {

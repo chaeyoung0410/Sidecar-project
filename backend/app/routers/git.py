@@ -13,6 +13,7 @@ from app.schemas import (
     GitPushPreview,
     GitPushRequest,
     GitPushResponse,
+    GitRemoteStatus,
     GitStatusResponse,
 )
 from app.providers.gemini_provider import AIProviderError
@@ -39,6 +40,14 @@ def get_git_status(session: Session = Depends(get_session)) -> GitStatusResponse
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
     except GitServiceError as error:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error)) from error
+
+
+@router.post("/remote/refresh", response_model=GitRemoteStatus)
+def refresh_remote_status(session: Session = Depends(get_session)) -> GitRemoteStatus:
+    try:
+        return selected_git_service(session).remote_status(fetch=True)
+    except (NotGitRepositoryError, GitServiceError) as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
 
 
 @router.post("/commit", response_model=GitCommitResponse)

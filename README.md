@@ -24,7 +24,7 @@ CodePad는 Mac에서 실행되는 로컬 Agent를 iPad PWA에서 확인하고 �
 - 실행 직전 명령어, 선택 프로젝트, 작업 폴더 확인
 - 비동기 명령 실행과 stdout/stderr, 종료 코드, 실행 기록 저장
 - 실행 중인 장기 프로세스 중지
-- Command stderr의 실시간 오류 감지와 WebSocket 전송
+- Command 종료 코드와 Error Pattern 기반 오류 감지 및 WebSocket 전송
 - 오류 메시지, stack trace, 파일명, 라인 번호 자동 추출 및 SQLite 저장
 - 최근 오류 카드와 상세 화면
 - Error 해결/미해결 상태, 사용자 메모 및 확인 삭제
@@ -133,7 +133,7 @@ iPad Safari에서 CodePad를 연 뒤 공유 버튼을 누르고 **홈 화면에 
 
 프로젝트를 제거해도 실제 폴더나 파일은 삭제되지 않으며 CodePad 등록 정보만 제거됩니다. 선택한 경로가 Git 저장소가 아니면 프로젝트 등록은 가능하지만 Git 상태 영역에 안내가 표시됩니다.
 
-## Git Commit과 Push
+## Git Commit, Push와 Safe Pull
 
 1. **Git control**에서 Commit할 변경 파일만 체크합니다.
 2. Commit 메시지를 입력하고 **Review commit**을 누릅니다.
@@ -141,6 +141,8 @@ iPad Safari에서 CodePad를 연 뒤 공유 버튼을 누르고 **홈 화면에 
 4. Push할 때는 **Push**를 누르고 현재 branch, `origin` 목적지, ahead commit 수를 확인합니다.
 
 CodePad는 선택한 파일만 Commit하며 선택하지 않은 staged 파일도 Commit에 포함하지 않습니다. Push 대상은 현재 checkout된 branch와 `origin`으로 고정됩니다. Force push는 지원하지 않습니다. Git 인증이 필요한 경우 Mac에 설정된 SSH key 또는 credential helper를 사용하며, Agent가 대화형 비밀번호 입력을 요청하지는 않습니다.
+
+Remote 상태를 확인할 때 `git fetch --prune origin`을 실행한 뒤 현재 Branch와 `origin/<branch>`의 ahead/behind를 계산합니다. Git Push 전 Remote에 Local에 없는 Commit이 있으면 Push를 차단합니다. Git Pull은 항상 `git pull --ff-only origin <branch>`를 사용하며 자동 Merge, Rebase, Stash를 수행하지 않습니다. Branch가 분기되었거나 기존 Merge Conflict가 있으면 작업 트리를 변경하지 않고 Mac에서 직접 해결하도록 안내합니다.
 
 Commit할 파일을 선택한 뒤 **AI로 Commit Message 추천**을 누르면 Gemini가 영어 Commit Message 후보를 최대 3개 생성합니다. 선택한 변경 파일만 `git diff` 대상으로 사용하며 최대 20개 파일, 최대 30,000자의 Diff만 전송합니다. 큰 Diff는 잘린 사실을 UI에 표시합니다. 추천 문구를 선택해도 입력창에서 자유롭게 수정할 수 있고, 기존 확인 화면을 거쳐야만 Commit됩니다. Gemini는 자동 Commit이나 Push를 실행하지 않으며, 추천 실패 시에도 직접 입력하는 기존 Commit 흐름은 그대로 사용할 수 있습니다.
 
@@ -156,9 +158,9 @@ Commit할 파일을 선택한 뒤 **AI로 Commit Message 추천**을 누르면 G
 
 ## Error Monitor
 
-CodePad가 실행한 Command에서 stderr가 발생하면 실행별 오류 기록을 생성하고 WebSocket으로 Dashboard에 즉시 전달합니다. 추가 stderr는 같은 기록의 stack trace에 이어지며 최근 100,000자까지 저장됩니다.
+CodePad가 실행한 Command의 종료 코드가 0이 아니거나 stderr에서 Traceback, Exception, 언어별 Error, FATAL, Panic 같은 명확한 Error Pattern을 감지한 경우에만 실행별 오류 기록을 생성하고 WebSocket으로 Dashboard에 전달합니다. 추가 stderr는 같은 실행 기록의 stack trace에 이어지며 최근 100,000자까지 저장됩니다.
 
-**Error monitor**에서 시간, 프로젝트, 파일과 라인, 오류 요약을 확인할 수 있습니다. 카드를 누르면 실행 명령과 전체 stack trace가 표시됩니다. 일반적인 Python traceback과 `file.ts:27` 형태의 위치를 자동 인식합니다. 일부 개발 도구는 정상 진행 정보도 stderr로 출력하므로 Phase 6에서는 해당 출력도 오류 후보로 기록될 수 있습니다. AI 분석은 Phase 7에서 연결합니다.
+**Error monitor**에서 시간, 프로젝트, 파일과 라인, 오류 요약을 확인할 수 있습니다. 카드를 누르면 실행 명령과 전체 stack trace가 표시됩니다. 일반적인 Python traceback과 `file.ts:27` 형태의 위치를 자동 인식합니다. 종료 코드가 0인 Command의 DeprecationWarning, UserWarning, 일반 Progress 및 Server 시작 로그는 Command 결과에는 남지만 Error History에는 저장하지 않습니다.
 
 Error 상세의 상태 버튼 또는 `•••` 메뉴에서 해결 여부를 변경하고 개인 메모를 추가·수정·삭제할 수 있습니다. Error Message, Stack Trace, 파일, 줄 번호, 발생 시간, 실행 Command 원본은 수정할 수 없습니다. Error 기록을 삭제하면 확인 절차 후 연결된 AI 분석만 함께 정리되며 Project와 Command 기록은 유지됩니다.
 

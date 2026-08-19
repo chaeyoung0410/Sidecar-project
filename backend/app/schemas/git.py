@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -60,12 +61,28 @@ class GitPushRequest(BaseModel):
     confirmed: Literal[True]
 
 
+class GitRemoteStatus(BaseModel):
+    repository: str
+    branch: str
+    remote: Literal["origin"] = "origin"
+    ahead: int
+    behind: int
+    diverged: bool
+    up_to_date: bool
+    upstream_exists: bool
+    last_fetched_at: datetime
+
+
 class GitPushPreview(BaseModel):
     repository: str
     branch: str
     remote: Literal["origin"] = "origin"
     ahead: int
+    behind: int
+    diverged: bool
+    up_to_date: bool
     upstream_exists: bool
+    last_fetched_at: datetime
 
 
 class GitPushResponse(BaseModel):
@@ -85,6 +102,13 @@ class GitPullPreview(BaseModel):
     branch: str
     remote: Literal["origin"] = "origin"
     changed_files: list[ChangedFile]
+    conflict_files: list[str]
+    ahead: int
+    behind: int
+    diverged: bool
+    up_to_date: bool
+    upstream_exists: bool
+    last_fetched_at: datetime
 
 
 class GitPullResponse(BaseModel):
@@ -98,6 +122,8 @@ class GitPullResponse(BaseModel):
     conflict: bool
     conflict_files: list[str]
     already_up_to_date: bool
+    fast_forward: bool
+    diverged: bool
     commits: int = 0
     files_changed: int = 0
     insertions: int = 0

@@ -1,13 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ConfirmationDialog } from './ConfirmationDialog'
-import type { CommitMessageSuggestions, GitCommitResult, GitPullPreview, GitPullResult, GitPushPreview, GitPushResult, GitStatus } from '../types/git'
+import type { CommitMessageSuggestions, GitCommitResult, GitPullPreview, GitPullResult, GitPushPreview, GitPushResult, GitRemoteStatus, GitStatus } from '../types/git'
 
 interface GitStatusPanelProps {
   status: GitStatus | null
   loading: boolean
   error: string | null
+  remoteStatus: GitRemoteStatus | null
+  remoteLoading: boolean
+  remoteError: string | null
   hasProject: boolean
   onRefresh: () => void
+  onRefreshRemote: () => Promise<GitRemoteStatus>
   onManageProjects: () => void
   onCommit: (files: string[], message: string) => Promise<GitCommitResult>
   onSuggestCommitMessages: (files: string[], language?: 'en' | 'ko') => Promise<CommitMessageSuggestions>
@@ -21,7 +25,7 @@ const statusNames: Record<string, string> = {
   M: 'Modified', A: 'Added', D: 'Deleted', R: 'Renamed', C: 'Copied', '?': 'Untracked', U: 'Conflict',
 }
 
-export function GitStatusPanel({ status, loading, error, hasProject, onRefresh, onManageProjects, onCommit, onSuggestCommitMessages, onGetPushPreview, onPush, onGetPullPreview, onPull }: GitStatusPanelProps) {
+export function GitStatusPanel({ status, loading, error, remoteStatus, remoteLoading, remoteError, hasProject, onRefresh, onRefreshRemote, onManageProjects, onCommit, onSuggestCommitMessages, onGetPushPreview, onPush, onGetPullPreview, onPull }: GitStatusPanelProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [message, setMessage] = useState('')
   const [commitOpen, setCommitOpen] = useState(false)
@@ -35,11 +39,22 @@ export function GitStatusPanel({ status, loading, error, hasProject, onRefresh, 
   const [success, setSuccess] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<CommitMessageSuggestions | null>(null)
   const [suggesting, setSuggesting] = useState(false)
+  const autoRemoteProjectRef = useRef<number | null>(null)
 
   useEffect(() => {
     const availablePaths = new Set(status?.changed_files.map((file) => file.path) ?? [])
     setSelected((current) => new Set([...current].filter((path) => availablePaths.has(path))))
   }, [status])
+
+  useEffect(() => {
+    if (!hasProject || !status) {
+      autoRemoteProjectRef.current = null
+      return
+    }
+    if (autoRemoteProjectRef.current === status.project_id) return
+    autoRemoteProjectRef.current = status.project_id
+    void onRefreshRemote().catch(() => undefined)
+  }, [hasProject, onRefreshRemote, status])
 
   const toggleFile = (path: string) => {
     setSuggestions(null)
@@ -174,10 +189,18 @@ export function GitStatusPanel({ status, loading, error, hasProject, onRefresh, 
         <p role="status" className={`mt-5 rounded-xl border px-4 py-3 text-sm ${actionError ? 'border-rose-400/20 bg-rose-400/[0.06] text-rose-300' : 'border-lime/20 bg-lime/[0.06] text-lime'}`}>{actionError ?? success}</p>
       )}
 
-      {pullResult && (pullResult.conflict || !pullResult.success) && (
+      {pullResult && (pullResult.conflict || pullResult.diverged || !pullResult.success) && (
         <div className="mt-3 rounded-2xl border border-rose-400/20 bg-rose-400/[0.04] p-4 text-sm">
           {pullResult.conflict && <><p className="font-semibold text-rose-300">충돌 파일</p><ul className="mt-2 space-y-1 font-mono text-xs text-zinc-300">{pullResult.conflict_files.map((file) => <li key={file}>{file}</li>)}</ul><p className="mt-3 text-zinc-500">Mac의 VS Code에서 충돌 내용을 수정한 뒤 Commit해주세요. CodePad는 충돌을 자동 해결하지 않습니다.</p></>}
+          {pullResult.diverged && <><p className="font-semibold text-rose-300">Branch가 분기되었습니다.</p><p className="mt-2 leading-6 text-zinc-400">CodePad는 자동 Merge 또는 Rebase를 수행하지 않습니다. Mac의 VS Code 또는 Terminal에서 방식을 직접 선택해주세요.</p></>}
           {(pullResult.stdout || pullResult.stderr) && <details className="mt-3"><summary className="cursor-pointer text-xs text-zinc-500">Git 상세 정보</summary><pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-ink p-3 font-mono text-xs text-zinc-400">{[pullResult.stdout, pullResult.stderr].filter(Boolean).join('\n')}</pre></details>}
+        </div>
+      )}
+
+      {hasProject && status && (
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-[20px] border border-white/[0.07] bg-panel p-5">
+          <div><p className="font-semibold text-zinc-100">Remote 상태</p>{remoteLoading ? <p className="mt-1 text-sm text-zinc-500">Remote 정보를 확인하고 있습니다…</p> : remoteStatus ? <><p className={`mt-1 text-sm ${remoteStatus.diverged ? 'text-[#ffd60a]' : 'text-zinc-400'}`}>{remoteStatus.diverged ? '⚠ Branch가 분기되었습니다.' : remoteStatus.up_to_date ? '최신 상태' : `↑ ${remoteStatus.ahead} commits ahead · ↓ ${remoteStatus.behind} commits behind`}</p><p className="mt-1 text-xs text-zinc-600">마지막 확인 {new Date(remoteStatus.last_fetched_at).toLocaleString('ko-KR')}</p></> : <p className="mt-1 text-sm text-zinc-500">Remote 상태를 아직 확인하지 않았습니다.</p>}{remoteError && <p className="mt-2 max-w-2xl whitespace-pre-wrap text-xs leading-5 text-rose-300">{remoteError}</p>}</div>
+          <button type="button" disabled={remoteLoading || busy} onClick={() => void onRefreshRemote().catch(() => undefined)} className="rounded-xl bg-white/[0.07] px-4 py-2.5 text-sm font-semibold text-zinc-200 disabled:opacity-40">{remoteLoading ? '확인 중…' : 'Remote 새로고침'}</button>
         </div>
       )}
 
@@ -240,20 +263,22 @@ export function GitStatusPanel({ status, loading, error, hasProject, onRefresh, 
         </dl>
       </ConfirmationDialog>
 
-      <ConfirmationDialog open={pushOpen} title="Git Push를 진행할까요?" description="현재 Branch의 Commit을 원격 Repository로 Push합니다. Force Push는 지원하지 않습니다." confirmLabel="Git Push" busy={busy} disabled={!pushPreview?.ahead} onCancel={() => setPushOpen(false)} onConfirm={() => void confirmPush()}>
+      <ConfirmationDialog open={pushOpen} title="Git Push를 진행할까요?" description={pushPreview?.behind ? 'Remote에 Local에 없는 Commit이 있습니다. 먼저 Remote 변경사항을 확인해주세요.' : '현재 Branch의 Commit을 원격 Repository로 Push합니다. Force Push는 지원하지 않습니다.'} confirmLabel="Git Push" busy={busy} disabled={!pushPreview?.ahead || Boolean(pushPreview?.behind)} onCancel={() => setPushOpen(false)} onConfirm={() => void confirmPush()}>
         <dl className="space-y-3 rounded-2xl border border-line bg-ink p-4 text-sm">
           <div className="flex justify-between gap-4"><dt className="text-zinc-500">Repository</dt><dd className="text-zinc-200">{pushPreview?.repository}</dd></div>
           <div className="flex justify-between gap-4"><dt className="text-zinc-500">Branch</dt><dd className="font-mono text-zinc-200">{pushPreview?.branch}</dd></div>
           <div className="flex justify-between gap-4"><dt className="text-zinc-500">원격 Repository</dt><dd className="font-mono text-zinc-200">origin/{pushPreview?.branch}</dd></div>
           <div className="flex justify-between gap-4"><dt className="text-zinc-500">Push할 Commit</dt><dd className="font-mono text-apple">{pushPreview?.ahead ?? 0}개</dd></div>
+          <div className="flex justify-between gap-4"><dt className="text-zinc-500">Remote에만 있는 Commit</dt><dd className={pushPreview?.behind ? 'font-mono text-[#ffd60a]' : 'font-mono text-zinc-300'}>{pushPreview?.behind ?? 0}개</dd></div>
         </dl>
       </ConfirmationDialog>
 
-      <ConfirmationDialog open={pullOpen} title={pullPreview?.changed_files.length ? '로컬 변경사항이 있습니다.' : 'Git Pull을 진행할까요?'} description={pullPreview?.changed_files.length ? 'Git Pull을 진행하면 Merge Conflict가 발생할 수 있습니다. 변경사항은 자동으로 Stash하지 않습니다.' : '원격 Repository의 최신 변경사항을 현재 프로젝트로 가져옵니다.'} confirmLabel={pullPreview?.changed_files.length ? '그래도 Git Pull' : 'Git Pull'} busy={busy} onCancel={() => setPullOpen(false)} onConfirm={() => void confirmPull()}>
+      <ConfirmationDialog open={pullOpen} title={pullPreview?.conflict_files.length ? 'Merge Conflict 해결이 필요합니다.' : pullPreview?.diverged ? 'Branch가 분기되었습니다.' : pullPreview?.changed_files.length ? '로컬 변경사항이 있습니다.' : 'Git Pull을 진행할까요?'} description={pullPreview?.conflict_files.length ? 'Git Pull 전에 충돌 파일을 먼저 해결해주세요.' : pullPreview?.diverged ? 'CodePad에서는 자동 Merge 또는 Rebase를 수행하지 않습니다.' : pullPreview?.changed_files.length ? 'Commit 또는 Stash를 권장합니다. 계속해도 Fast-forward only 정책은 유지됩니다.' : '원격 Repository의 최신 변경사항을 Fast-forward only로 가져옵니다.'} confirmLabel={pullPreview?.changed_files.length ? '그래도 Git Pull' : 'Git Pull'} busy={busy} disabled={Boolean(pullPreview?.diverged || pullPreview?.conflict_files.length || !pullPreview?.upstream_exists)} onCancel={() => setPullOpen(false)} onConfirm={() => void confirmPull()}>
         <dl className="space-y-3 rounded-2xl border border-line bg-ink p-4 text-sm">
           <div className="flex justify-between gap-4"><dt className="text-zinc-500">Repository</dt><dd className="text-zinc-200">{pullPreview?.repository}</dd></div>
           <div className="flex justify-between gap-4"><dt className="text-zinc-500">현재 Branch</dt><dd className="font-mono text-zinc-200">{pullPreview?.branch}</dd></div>
           <div className="flex justify-between gap-4"><dt className="text-zinc-500">원격 Repository</dt><dd className="font-mono text-zinc-200">origin/{pullPreview?.branch}</dd></div>
+          <div className="flex justify-between gap-4"><dt className="text-zinc-500">Remote 상태</dt><dd className={pullPreview?.diverged ? 'text-[#ffd60a]' : 'font-mono text-zinc-200'}>{pullPreview?.diverged ? '분기됨' : `↑ ${pullPreview?.ahead ?? 0} · ↓ ${pullPreview?.behind ?? 0}`}</dd></div>
           {Boolean(pullPreview?.changed_files.length) && <div><dt className="text-rose-300">Commit되지 않은 변경 파일 · {pullPreview?.changed_files.length}개</dt><dd className="mt-2 max-h-36 space-y-1 overflow-y-auto font-mono text-xs text-zinc-300">{pullPreview?.changed_files.map((file) => <p key={`${file.status}-${file.path}`}>{file.status === '?' ? '??' : file.status} {file.path}{file.staged ? ' · Staged' : ''}{file.unstaged ? ' · Unstaged' : ''}</p>)}</dd></div>}
         </dl>
       </ConfirmationDialog>

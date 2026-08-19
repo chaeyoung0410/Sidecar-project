@@ -36,6 +36,7 @@ from app.schemas.git import (
     GitPushPreview,
     GitPushRequest,
     GitPushResponse,
+    GitRemoteStatus,
     GitStatusResponse,
 )
 from app.schemas.health import HealthResponse
@@ -80,6 +81,7 @@ __all__ = [
     "GitPushPreview",
     "GitPushRequest",
     "GitPushResponse",
+    "GitRemoteStatus",
     "GitStatusResponse",
     "HealthResponse",
     "JournalCommand",

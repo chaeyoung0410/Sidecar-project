@@ -17,7 +17,29 @@ ERROR_LINE_PATTERN = re.compile(
     r"(?:error|exception|traceback|failed|failure|fatal|panic|not found|permission denied)",
     re.IGNORECASE,
 )
+ERROR_PATTERNS = (
+    re.compile(r"Traceback \(most recent call last\):", re.IGNORECASE),
+    re.compile(r"\b[A-Za-z_]*(?:Error|Exception):"),
+    re.compile(r"(?:^|\n)\s*(?:ERROR|FATAL|PANIC|FAILED)(?:\s|:|!)", re.IGNORECASE),
+    re.compile(r"(?:\bPermission denied\b|\bUnhandledPromiseRejection\b|npm ERR!)", re.IGNORECASE),
+    re.compile(r"\bthread\s+['\"].+['\"]\s+panicked at\b", re.IGNORECASE),
+)
+WARNING_PATTERNS = (
+    re.compile(r"\b(?:DeprecationWarning|FutureWarning|UserWarning|RuntimeWarning|Warning):", re.IGNORECASE),
+    re.compile(r"(?:^|\n)\s*WARN(?:ING)?(?:\s|:)", re.IGNORECASE),
+)
 MAX_STACK_TRACE_CHARS = 100_000
+
+
+def should_capture_error(stderr: str, exit_code: int | None, status: str | None = None) -> bool:
+    output = stderr.strip()
+    if not output:
+        return False
+    if (exit_code is not None and exit_code != 0) or status == "failed":
+        return True
+    has_error_pattern = any(pattern.search(output) for pattern in ERROR_PATTERNS)
+    warning_only = any(pattern.search(output) for pattern in WARNING_PATTERNS) and not has_error_pattern
+    return has_error_pattern and not warning_only
 
 
 def parse_error_context(stack_trace: str) -> tuple[str, str | None, int | None]:
@@ -102,7 +124,7 @@ class ErrorMonitor:
     async def capture(self, run_id: int) -> ErrorHistory | None:
         with Session(engine) as session:
             run = session.get(CommandHistory, run_id)
-            if not run or not run.stderr.strip():
+            if not run or not should_capture_error(run.stderr, run.exit_code, run.status):
                 return None
             project = session.get(Project, run.project_id)
             if not project or project.id is None:

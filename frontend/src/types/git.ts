@@ -33,8 +33,14 @@ export interface GitPushPreview {
   branch: string
   remote: 'origin'
   ahead: number
+  behind: number
+  diverged: boolean
+  up_to_date: boolean
   upstream_exists: boolean
+  last_fetched_at: string
 }
+
+export type GitRemoteStatus = GitPushPreview
 
 export interface GitPushResult {
   repository: string
@@ -49,6 +55,13 @@ export interface GitPullPreview {
   branch: string
   remote: 'origin'
   changed_files: ChangedFile[]
+  conflict_files: string[]
+  ahead: number
+  behind: number
+  diverged: boolean
+  up_to_date: boolean
+  upstream_exists: boolean
+  last_fetched_at: string
 }
 
 export interface GitPullResult {
@@ -62,6 +75,8 @@ export interface GitPullResult {
   conflict: boolean
   conflict_files: string[]
   already_up_to_date: boolean
+  fast_forward: boolean
+  diverged: boolean
   commits: number
   files_changed: number
   insertions: number

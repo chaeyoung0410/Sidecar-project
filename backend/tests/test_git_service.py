@@ -1,5 +1,6 @@
 import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -166,6 +167,57 @@ def test_pushes_current_branch_to_origin_without_force(tmp_path: Path) -> None:
     assert service.push_preview().ahead == 0
 
 
+def test_remote_status_fetches_and_push_blocks_diverged_branch(tmp_path: Path) -> None:
+    source, local = initialize_remote_pair(tmp_path)
+    (local / "local.txt").write_text("local\n", encoding="utf-8")
+    run_git(local, "add", "local.txt")
+    run_git(local, "commit", "-m", "Local only")
+    (source / "remote.txt").write_text("remote\n", encoding="utf-8")
+    run_git(source, "add", "remote.txt")
+    run_git(source, "commit", "-m", "Remote only")
+    run_git(source, "push", "origin", "main")
+
+    service = GitService(1, "Test", str(local))
+    remote = service.remote_status()
+
+    assert remote.ahead == 1
+    assert remote.behind == 1
+    assert remote.diverged is True
+    assert remote.up_to_date is False
+    with pytest.raises(GitServiceError, match="Remote에 Local에 없는 Commit"):
+        service.push()
+
+
+def test_remote_fetch_failure_is_classified(tmp_path: Path) -> None:
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    initialize_repository(repository)
+    (repository / "app.txt").write_text("initial\n", encoding="utf-8")
+    run_git(repository, "add", "app.txt")
+    run_git(repository, "commit", "-m", "Initial")
+    run_git(repository, "remote", "add", "origin", str(tmp_path / "missing.git"))
+
+    with pytest.raises(GitServiceError, match="Remote Repository 정보를 가져오지 못했습니다"):
+        GitService(1, "Test", str(repository)).remote_status()
+
+
+def test_remote_refresh_api_returns_structured_status(tmp_path: Path) -> None:
+    _, local = initialize_remote_pair(tmp_path)
+    with TestClient(app) as client:
+        assert client.post(
+            "/api/projects", json={"name": "Remote project", "path": str(local)}
+        ).status_code == 201
+        response = client.post("/api/git/remote/refresh")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["remote"] == "origin"
+    assert payload["ahead"] == 0
+    assert payload["behind"] == 0
+    assert payload["up_to_date"] is True
+    assert payload["last_fetched_at"]
+
+
 def test_pulls_remote_commit_and_reports_already_up_to_date(tmp_path: Path) -> None:
     source, local = initialize_remote_pair(tmp_path)
     (source / "app.txt").write_text("remote update\n", encoding="utf-8")
@@ -176,11 +228,18 @@ def test_pulls_remote_commit_and_reports_already_up_to_date(tmp_path: Path) -> N
     preview = service.pull_preview()
     assert preview.branch == "main"
     assert preview.changed_files == []
+    assert preview.ahead == 0
+    assert preview.behind == 1
+    assert preview.diverged is False
 
-    result = service.pull()
+    with patch.object(service, "_run", wraps=service._run) as git_run:
+        result = service.pull()
     assert result.success is True
     assert result.conflict is False
     assert result.already_up_to_date is False
+    assert result.fast_forward is True
+    assert result.diverged is False
+    assert any(call.args[:4] == ("pull", "--ff-only", "origin", "main") for call in git_run.call_args_list)
     assert result.commits == 1
     assert result.files_changed == 1
     assert (local / "app.txt").read_text(encoding="utf-8") == "remote update\n"
@@ -188,6 +247,7 @@ def test_pulls_remote_commit_and_reports_already_up_to_date(tmp_path: Path) -> N
     current = service.pull()
     assert current.success is True
     assert current.already_up_to_date is True
+    assert current.fast_forward is True
 
 
 def test_pull_preview_reports_local_changes(tmp_path: Path) -> None:
@@ -202,20 +262,44 @@ def test_pull_preview_reports_local_changes(tmp_path: Path) -> None:
     assert any(file.status == "?" for file in preview.changed_files)
 
 
-def test_pull_detects_merge_conflict(tmp_path: Path) -> None:
+def test_pull_blocks_diverged_branch_without_modifying_worktree(tmp_path: Path) -> None:
     source, local = initialize_remote_pair(tmp_path)
     (local / "app.txt").write_text("local commit\n", encoding="utf-8")
     run_git(local, "commit", "-am", "Local update")
-    run_git(local, "config", "pull.rebase", "false")
     (source / "app.txt").write_text("remote commit\n", encoding="utf-8")
     run_git(source, "commit", "-am", "Remote update")
     run_git(source, "push", "origin", "main")
+
+    before = run_git(local, "rev-parse", "HEAD").stdout.strip()
+    result = GitService(1, "Test", str(local)).pull()
+
+    assert result.success is False
+    assert result.diverged is True
+    assert result.conflict is False
+    assert result.fast_forward is False
+    assert run_git(local, "rev-parse", "HEAD").stdout.strip() == before
+    assert run_git(local, "status", "--porcelain").stdout == ""
+
+
+def test_pull_blocks_existing_merge_conflict(tmp_path: Path) -> None:
+    source, local = initialize_remote_pair(tmp_path)
+    (local / "app.txt").write_text("local commit\n", encoding="utf-8")
+    run_git(local, "commit", "-am", "Local update")
+    (source / "app.txt").write_text("remote commit\n", encoding="utf-8")
+    run_git(source, "commit", "-am", "Remote update")
+    run_git(source, "push", "origin", "main")
+    run_git(local, "fetch", "origin")
+    merge = subprocess.run(
+        ["git", "merge", "origin/main"], cwd=local, check=False, capture_output=True, text=True
+    )
+    assert merge.returncode != 0
 
     result = GitService(1, "Test", str(local)).pull()
 
     assert result.success is False
     assert result.conflict is True
     assert result.conflict_files == ["app.txt"]
+    assert result.diverged is False
 
 
 def test_pull_rejects_missing_origin_and_non_repository(tmp_path: Path) -> None:

@@ -6,7 +6,7 @@ from sqlmodel import Session
 from app.database.database import engine
 from app.main import app
 from app.models import AIHistory, CommandHistory, ErrorHistory, Project
-from app.services.error_monitor import parse_error_context
+from app.services.error_monitor import parse_error_context, should_capture_error
 
 
 def test_parses_python_traceback_location_and_message() -> None:
@@ -29,6 +29,16 @@ def test_parses_javascript_style_location() -> None:
     assert message == "TypeError: broken"
     assert file == "src/main.ts"
     assert line == 27
+
+
+def test_filters_warning_and_normal_stderr_but_keeps_real_errors() -> None:
+    assert should_capture_error("DeprecationWarning: old API", 0) is False
+    assert should_capture_error("Server started on port 8000", 0) is False
+    assert should_capture_error("download progress 50%", None) is False
+    assert should_capture_error("Traceback (most recent call last):\nValueError: broken", 1) is True
+    assert should_capture_error("TypeError: broken", 0) is True
+    assert should_capture_error("plain failure output", 2) is True
+    assert should_capture_error("Unable to start process", None, "failed") is True
 
 
 def test_error_metadata_persists_and_delete_cleans_only_analysis(tmp_path: Path) -> None:

@@ -1,7 +1,7 @@
 import subprocess
 import os
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.schemas import (
@@ -12,6 +12,7 @@ from app.schemas import (
     GitPullResponse,
     GitPushPreview,
     GitPushResponse,
+    GitRemoteStatus,
     GitStatusResponse,
     JournalCommit,
 )
@@ -154,30 +155,48 @@ class GitService:
             truncated=truncated,
         )
 
-    def push_preview(self) -> GitPushPreview:
-        branch = self._current_branch()
+    def remote_status(self, fetch: bool = True) -> GitRemoteStatus:
+        branch = self._current_branch("inspect Remote status")
         self._run("remote", "get-url", "origin")
+        fetched_at = self._fetch_origin() if fetch else datetime.now(UTC)
         remote_ref = f"refs/remotes/origin/{branch}"
-        upstream_exists = self._run(
-            "show-ref", "--verify", "--quiet", remote_ref, check=False
-        ).returncode == 0
-
+        upstream_exists = self._run("show-ref", "--verify", "--quiet", remote_ref, check=False).returncode == 0
         if upstream_exists:
-            ahead_output = self._run(
-                "rev-list", "--count", f"origin/{branch}..HEAD"
-            ).stdout.strip()
+            counts = self._run("rev-list", "--left-right", "--count", f"HEAD...origin/{branch}").stdout.split()
+            ahead, behind = (int(counts[0]), int(counts[1])) if len(counts) == 2 else (0, 0)
         else:
-            ahead_output = self._run("rev-list", "--count", "HEAD").stdout.strip()
-
-        return GitPushPreview(
+            ahead = int(self._run("rev-list", "--count", "HEAD").stdout.strip() or "0")
+            behind = 0
+        return GitRemoteStatus(
             repository=self.project_name,
             branch=branch,
-            ahead=int(ahead_output or "0"),
+            ahead=ahead,
+            behind=behind,
+            diverged=ahead > 0 and behind > 0,
+            up_to_date=upstream_exists and ahead == 0 and behind == 0,
             upstream_exists=upstream_exists,
+            last_fetched_at=fetched_at,
+        )
+
+    def push_preview(self) -> GitPushPreview:
+        remote = self.remote_status(fetch=True)
+        return GitPushPreview(
+            repository=self.project_name,
+            branch=remote.branch,
+            ahead=remote.ahead,
+            behind=remote.behind,
+            diverged=remote.diverged,
+            up_to_date=remote.up_to_date,
+            upstream_exists=remote.upstream_exists,
+            last_fetched_at=remote.last_fetched_at,
         )
 
     def push(self) -> GitPushResponse:
         preview = self.push_preview()
+        if preview.behind > 0:
+            raise GitServiceError(
+                "Remote에 Local에 없는 Commit이 있습니다. Git Pull 또는 직접 Merge/Rebase한 후 다시 시도해주세요."
+            )
         if preview.ahead == 0:
             return GitPushResponse(
                 repository=self.project_name,
@@ -200,33 +219,80 @@ class GitService:
         )
 
     def pull_preview(self) -> GitPullPreview:
-        branch = self._current_branch("pull")
-        self._run("remote", "get-url", "origin")
+        remote = self.remote_status(fetch=True)
         current_status = self.status()
+        conflict_files = self._conflict_files()
         return GitPullPreview(
             repository=self.project_name,
-            branch=branch,
+            branch=remote.branch,
             changed_files=current_status.changed_files,
+            conflict_files=conflict_files,
+            ahead=remote.ahead,
+            behind=remote.behind,
+            diverged=remote.diverged,
+            up_to_date=remote.up_to_date,
+            upstream_exists=remote.upstream_exists,
+            last_fetched_at=remote.last_fetched_at,
         )
 
     def pull(self) -> GitPullResponse:
         preview = self.pull_preview()
+        if preview.conflict_files:
+            return GitPullResponse(
+                success=False,
+                repository=self.project_name,
+                branch=preview.branch,
+                message="Merge Conflict 해결이 필요합니다. Git Pull 전에 충돌 파일을 먼저 해결해주세요.",
+                stdout="",
+                stderr="",
+                conflict=True,
+                conflict_files=preview.conflict_files,
+                already_up_to_date=False,
+                fast_forward=False,
+                diverged=False,
+            )
+        if preview.diverged:
+            return GitPullResponse(
+                success=False,
+                repository=self.project_name,
+                branch=preview.branch,
+                message="Local Branch와 Remote Branch의 기록이 분기되어 있습니다. Mac에서 Merge 또는 Rebase 방식을 직접 선택해주세요.",
+                stdout="",
+                stderr="",
+                conflict=False,
+                conflict_files=[],
+                already_up_to_date=False,
+                fast_forward=False,
+                diverged=True,
+            )
+        if not preview.upstream_exists:
+            raise GitServiceError(f"Remote Branch origin/{preview.branch}를 찾을 수 없습니다.")
+        if preview.behind == 0:
+            return GitPullResponse(
+                success=True,
+                repository=self.project_name,
+                branch=preview.branch,
+                message="Already up to date",
+                stdout="",
+                stderr="",
+                conflict=False,
+                conflict_files=[],
+                already_up_to_date=True,
+                fast_forward=True,
+                diverged=False,
+            )
         before = self._run("rev-parse", "HEAD").stdout.strip()
         result = self._run(
             "pull",
+            "--ff-only",
             "origin",
             preview.branch,
             timeout=120,
             check=False,
         )
         output = "\n".join(part for part in (result.stdout, result.stderr) if part)
-        conflict_files = []
-        if result.returncode != 0:
-            conflict_files = [
-                path for path in self._run(
-                    "diff", "--name-only", "--diff-filter=U", "-z", check=False
-                ).stdout.split("\0") if path
-            ]
+        conflict_files = self._conflict_files() if result.returncode != 0 else []
+        diverged = result.returncode != 0 and self.remote_status(fetch=False).diverged
 
         already_up_to_date = any(
             phrase in output.lower()
@@ -242,6 +308,8 @@ class GitService:
         conflict = bool(conflict_files)
         if conflict:
             message = "Merge conflict detected"
+        elif diverged:
+            message = "Local Branch와 Remote Branch의 기록이 분기되어 있습니다. Mac에서 Merge 또는 Rebase 방식을 직접 선택해주세요."
         elif result.returncode != 0:
             message = result.stderr.strip() or result.stdout.strip() or "Git Pull failed"
         elif already_up_to_date:
@@ -259,11 +327,36 @@ class GitService:
             conflict=conflict,
             conflict_files=conflict_files,
             already_up_to_date=already_up_to_date,
+            fast_forward=result.returncode == 0,
+            diverged=diverged,
             commits=commits,
             files_changed=files_changed,
             insertions=insertions,
             deletions=deletions,
         )
+
+    def _fetch_origin(self) -> datetime:
+        result = self._run("fetch", "--prune", "origin", timeout=120, check=False)
+        if result.returncode != 0:
+            detail = result.stderr.strip() or result.stdout.strip() or "Git Fetch failed"
+            lowered = detail.lower()
+            if any(token in lowered for token in ("authentication failed", "could not read username", "permission denied (publickey)")):
+                reason = "Git 인증에 실패했습니다."
+            elif any(token in lowered for token in ("could not resolve host", "failed to connect", "network is unreachable", "timed out")):
+                reason = "네트워크 연결을 확인해주세요."
+            elif "not found" in lowered or "does not appear to be a git repository" in lowered:
+                reason = "Remote Repository를 찾을 수 없습니다."
+            else:
+                reason = "Repository 접근 권한과 Remote 설정을 확인해주세요."
+            raise GitServiceError(f"Remote Repository 정보를 가져오지 못했습니다. {reason}\n{detail}")
+        return datetime.now(UTC)
+
+    def _conflict_files(self) -> list[str]:
+        return [
+            path for path in self._run(
+                "diff", "--name-only", "--diff-filter=U", "-z", check=False
+            ).stdout.split("\0") if path
+        ]
 
     def recent_commits(
         self,

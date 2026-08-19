@@ -6,6 +6,7 @@ import {
   getPushPreview,
   pullCurrentBranch,
   pushCurrentBranch,
+  refreshRemoteStatus as refreshRemoteStatusRequest,
   suggestCommitMessages,
 } from '../services/gitApi'
 import {
@@ -15,12 +16,15 @@ import {
   selectProject as selectProjectRequest,
   updateProject as updateProjectRequest,
 } from '../services/projectApi'
-import type { GitStatus } from '../types/git'
+import type { GitRemoteStatus, GitStatus } from '../types/git'
 import type { Project, ProjectCreate } from '../types/project'
 
 export function useWorkspace() {
   const [projects, setProjects] = useState<Project[]>([])
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
+  const [remoteStatus, setRemoteStatus] = useState<GitRemoteStatus | null>(null)
+  const [remoteLoading, setRemoteLoading] = useState(false)
+  const [remoteError, setRemoteError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [gitError, setGitError] = useState<string | null>(null)
@@ -28,6 +32,8 @@ export function useWorkspace() {
   const refresh = useCallback(async () => {
     setLoading(true)
     setError(null)
+    setRemoteStatus(null)
+    setRemoteError(null)
     try {
       const loadedProjects = await listProjects()
       setProjects(loadedProjects)
@@ -43,11 +49,13 @@ export function useWorkspace() {
         }
       } else {
         setGitStatus(null)
+        setRemoteStatus(null)
         setGitError(null)
       }
     } catch (requestError) {
       setProjects([])
       setGitStatus(null)
+      setRemoteStatus(null)
       setError(requestError instanceof Error ? requestError.message : 'Unable to load projects')
     } finally {
       setLoading(false)
@@ -96,10 +104,28 @@ export function useWorkspace() {
     return result
   }, [refresh])
 
+  const refreshRemoteStatus = useCallback(async () => {
+    setRemoteLoading(true)
+    try {
+      const result = await refreshRemoteStatusRequest()
+      setRemoteStatus(result)
+      setRemoteError(null)
+      return result
+    } catch (requestError) {
+      setRemoteError(requestError instanceof Error ? requestError.message : 'Remote Repository 정보를 가져오지 못했습니다.')
+      throw requestError
+    } finally {
+      setRemoteLoading(false)
+    }
+  }, [])
+
   return {
     projects,
     currentProject: projects.find((project) => project.is_selected) ?? null,
     gitStatus,
+    remoteStatus,
+    remoteLoading,
+    remoteError,
     loading,
     error,
     gitError,
@@ -114,5 +140,6 @@ export function useWorkspace() {
     pushChanges,
     getPullPreview,
     pullChanges,
+    refreshRemoteStatus,
   }
 }

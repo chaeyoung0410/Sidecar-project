@@ -59,12 +59,8 @@ def test_saved_command_crud_and_execution(tmp_path: Path, monkeypatch: pytest.Mo
         assert "out" in result["stdout"]
         assert "err" in result["stderr"]
         errors = client.get("/api/errors").json()
-        assert len(errors) == 1
-        assert errors[0]["command_run_id"] == result["id"]
-        assert errors[0]["error_message"] == "err"
-        assert broadcast.await_count >= 1
-        event = broadcast.await_args_list[0].args[0]
-        assert event["type"] == "error.detected"
+        assert errors == []
+        assert broadcast.await_count == 0
 
         updated = client.put(
             f"/api/commands/{command['id']}",
@@ -74,6 +70,31 @@ def test_saved_command_crud_and_execution(tmp_path: Path, monkeypatch: pytest.Mo
         assert updated.json()["name"] == "Updated"
         assert len(client.get("/api/commands").json()) == 1
         assert client.delete(f"/api/commands/{command['id']}").status_code == 204
+
+
+def test_failed_command_creates_error_and_websocket_event(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    broadcast = AsyncMock()
+    monkeypatch.setattr(connection_manager, "broadcast", broadcast)
+    with TestClient(app) as client:
+        register_project(client, tmp_path)
+        command = client.post(
+            "/api/commands",
+            json={
+                "name": "Broken command",
+                "command": "python3 -c \"import sys; print('TypeError: broken', file=sys.stderr); sys.exit(1)\"",
+                "working_directory": ".",
+            },
+        ).json()
+        started = client.post(f"/api/commands/{command['id']}/run", json={"confirmed": True}).json()
+        result = wait_for_terminal_status(client, started["id"])
+
+        assert result["status"] == "failed"
+        assert result["exit_code"] == 1
+        errors = client.get("/api/errors").json()
+        assert len(errors) == 1
+        assert errors[0]["command_run_id"] == result["id"]
+        assert errors[0]["error_message"] == "TypeError: broken"
+        assert any(call.args[0]["type"] == "error.detected" for call in broadcast.await_args_list)
 
 
 def test_dangerous_and_shell_commands_are_blocked() -> None:
