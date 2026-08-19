@@ -13,6 +13,7 @@ import { GitStatusPanel } from '../components/GitStatusPanel'
 import { NotionPanel } from '../components/NotionPanel'
 import { ProjectDialog } from '../components/ProjectDialog'
 import { ProjectNameDialog } from '../components/ProjectNameDialog'
+import { QuickActionSheets } from '../components/QuickActionSheets'
 import { SettingsPanel } from '../components/SettingsPanel'
 import { StatusBadge } from '../components/StatusBadge'
 import { useAgentConnection } from '../hooks/useAgentConnection'
@@ -22,20 +23,11 @@ import { useDecks } from '../hooks/useDecks'
 import { useErrors } from '../hooks/useErrors'
 import { useNotion } from '../hooks/useNotion'
 import { useWorkspace } from '../hooks/useWorkspace'
-import type { DashboardAction, DashboardActionType } from '../types/action'
+import type { DashboardAction } from '../types/action'
 import type { Deck, DeckIcon, DeckInput } from '../types/deck'
 
 const routes = new Set<AppRoute>(['#home', '#error-monitor', '#git', '#notion-journal', '#actions', '#settings'])
 type DashboardRoute = AppRoute | `#decks/${number}`
-
-const actionRoutes: Record<DashboardActionType, AppRoute> = {
-  ai_error: '#error-monitor',
-  git_commit: '#git',
-  git_push: '#git',
-  git_pull: '#git',
-  notion: '#notion-journal',
-  command: '#actions',
-}
 
 function currentRoute(): DashboardRoute {
   const hash = window.location.hash
@@ -61,6 +53,7 @@ export function Dashboard() {
   const [actionPickerOpen, setActionPickerOpen] = useState(false)
   const [deleteDeck, setDeleteDeck] = useState<Deck | null>(null)
   const [deckBusy, setDeckBusy] = useState(false)
+  const [quickAction, setQuickAction] = useState<DashboardAction | null>(null)
 
   useEffect(() => {
     const updateRoute = () => setRoute(currentRoute())
@@ -83,7 +76,7 @@ export function Dashboard() {
     }
   }, [state, route])
 
-  const navigateAction = (action: DashboardAction) => navigate(actionRoutes[action.type])
+  const openQuickAction = (action: DashboardAction) => setQuickAction(action)
   const selectedDeckId = route.startsWith('#decks/') ? Number(route.split('/')[1]) : null
   const selectedDeck = selectedDeckId === null ? null : deckState.decks.find((deck) => deck.id === selectedDeckId) ?? null
 
@@ -135,7 +128,7 @@ export function Dashboard() {
             {deckState.loading ? <div className="rounded-[22px] bg-panel p-8 text-center text-sm text-zinc-500">Deck을 불러오는 중…</div> : deckState.decks.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{deckState.decks.map((deck, index) => <article key={deck.id} className="pressable-card group rounded-[22px] border border-transparent bg-panel p-5 hover:border-apple/25 sm:p-6"><button type="button" onClick={() => navigate(`#decks/${deck.id}`)} className="w-full text-left"><div className="flex items-start justify-between"><span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-apple/10 font-mono text-apple">{deckIcons[deck.icon as DeckIcon] ?? '▦'}</span><span className="text-2xl text-apple/60 transition group-hover:translate-x-1">›</span></div><p className="mt-7 break-words text-[19px] font-semibold text-white">{deck.name}</p><p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-zinc-500">{deck.description || '설명 없음'}</p><p className="mt-4 text-xs text-zinc-600">{deck.actions.length}개의 Action</p></button><div className="mt-4 flex justify-end gap-1 border-t border-white/[0.07] pt-3"><button type="button" disabled={index === 0} onClick={() => void deckState.moveDeck(deck.id, -1)} aria-label={`${deck.name} 위로 이동`} className="rounded-lg px-2 py-1 text-xs text-zinc-500 disabled:opacity-20">↑</button><button type="button" disabled={index === deckState.decks.length - 1} onClick={() => void deckState.moveDeck(deck.id, 1)} aria-label={`${deck.name} 아래로 이동`} className="rounded-lg px-2 py-1 text-xs text-zinc-500 disabled:opacity-20">↓</button></div></article>)}</div> : <div className="rounded-[22px] border border-dashed border-white/[0.18] p-9 text-center"><p className="font-semibold text-zinc-200">아직 생성된 Deck이 없습니다.</p><p className="mt-2 text-sm leading-6 text-zinc-500">자주 사용하는 개발 기능을 Deck으로 묶어서 관리해보세요.</p><button type="button" disabled={!workspace.currentProject} onClick={() => { setEditingDeck(null); setDeckDialogOpen(true) }} className="mt-5 rounded-xl bg-apple px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-30">Deck 추가</button></div>}
           </section>}
 
-          {route.startsWith('#decks/') && selectedDeck && <DeckDetail deck={selectedDeck} onBack={() => navigate('#home')} onEdit={() => { setEditingDeck(selectedDeck); setDeckDialogOpen(true) }} onDelete={() => setDeleteDeck(selectedDeck)} onAdd={() => setActionPickerOpen(true)} onOpenAction={navigateAction} onEditAction={(action) => { setActionToEdit(action); setActionsOpen(true) }} onRemoveAction={(actionId) => { if (window.confirm('이 Action을 현재 Deck에서 제거할까요? 원본 Action은 삭제되지 않습니다.')) void deckState.removeAction(selectedDeck.id, actionId) }} onMoveAction={(actionId, direction) => void deckState.moveAction(selectedDeck.id, actionId, direction)} />}
+          {route.startsWith('#decks/') && selectedDeck && <DeckDetail deck={selectedDeck} onBack={() => navigate('#home')} onEdit={() => { setEditingDeck(selectedDeck); setDeckDialogOpen(true) }} onDelete={() => setDeleteDeck(selectedDeck)} onAdd={() => setActionPickerOpen(true)} onOpenAction={openQuickAction} onEditAction={(action) => { setActionToEdit(action); setActionsOpen(true) }} onRemoveAction={(actionId) => { if (window.confirm('이 Action을 현재 Deck에서 제거할까요? 원본 Action은 삭제되지 않습니다.')) void deckState.removeAction(selectedDeck.id, actionId) }} onMoveAction={(actionId, direction) => void deckState.moveAction(selectedDeck.id, actionId, direction)} />}
           {route.startsWith('#decks/') && !selectedDeck && !deckState.loading && <section className="py-16 text-center"><p className="font-semibold text-zinc-200">Deck을 찾을 수 없습니다.</p><button type="button" onClick={() => navigate('#home')} className="mt-4 text-sm text-apple">Deck 목록으로 돌아가기</button></section>}
 
           {route === '#error-monitor' && <ErrorPanel errors={errorState.errors} loading={errorState.loading} error={errorState.error} onRefresh={() => void errorState.refresh()} onUpdate={errorState.update} onDelete={errorState.remove} />}
@@ -155,5 +148,6 @@ export function Dashboard() {
     <DeckDialog open={deckDialogOpen} deck={editingDeck} onClose={() => setDeckDialogOpen(false)} onSave={saveDeck} />
     <DeckActionPicker open={actionPickerOpen} busy={deckBusy} actions={actionState.actions.filter((action) => !selectedDeck?.actions.some((current) => current.id === action.id))} onClose={() => setActionPickerOpen(false)} onAdd={async (actionId) => { if (!selectedDeck) return; setDeckBusy(true); try { await deckState.addAction(selectedDeck.id, actionId) } finally { setDeckBusy(false) } }} />
     <ConfirmationDialog open={deleteDeck !== null} title={`'${deleteDeck?.name ?? ''}'을 삭제할까요?`} description="Deck에 포함된 Action 연결도 함께 제거됩니다. 실제 Git, Command 또는 프로젝트 데이터는 삭제되지 않습니다." confirmLabel="Deck 삭제" busy={deckBusy} onCancel={() => setDeleteDeck(null)} onConfirm={() => void confirmDeleteDeck()}><p className="rounded-2xl bg-rose-400/[0.06] p-4 text-sm text-zinc-400">이 작업은 Deck 구성만 삭제하며 원본 Action은 그대로 유지합니다.</p></ConfirmationDialog>
+    <QuickActionSheets action={quickAction} gitStatus={workspace.gitStatus} errors={errorState.errors} notionStatus={notionState.status} notionSaving={notionState.saving} commands={commandState.commands} project={workspace.currentProject} onClose={() => setQuickAction(null)} onOpenFull={navigate} onCommit={workspace.commitChanges} onSuggestCommitMessages={workspace.suggestCommitMessages} onGetPushPreview={workspace.getPushPreview} onPush={workspace.pushChanges} onGetPullPreview={workspace.getPullPreview} onPull={workspace.pullChanges} onSaveNotion={notionState.save} onRunCommand={commandState.runCommand} />
   </main>
 }
